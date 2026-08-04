@@ -1,0 +1,12 @@
+{
+  "domain": "cal_activity",
+  "name": "Cal Activity Sensors",
+  "codeowners": ["@Cebbas"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend", "websocket_api"],
+  "documentation": "https://github.com/Cebbas/cal_activity_sensors",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Cebbas/cal_activity_sensors/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

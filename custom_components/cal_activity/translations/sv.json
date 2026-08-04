@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Skapa aktivitetssensor",
+        "description": "Skapar sensorer som visar om ett filtrerat event pågår just nu / vad nästa är. Lämna include/exclude tomma för att inte filtrera alls.",
+        "data": {
+          "name": "Namn",
+          "sources": "Källkalendrar (välj flera)",
+          "icon": "Ikon",
+          "picture": "Bild",
+          "field": "Fält att matcha mot",
+          "include": "Inkludera bara event som innehåller (ex: Zoo, Djurpark)",
+          "exclude": "Uteslut event som innehåller (ex: Zoo, Privat)",
+          "use_regex": "Tolka orden som regex-mönster",
+          "case_sensitive": "Skiftlägeskänslig",
+          "trigger_mode": "Sensorn ska vara \"på\" när",
+          "create_binary_sensor": "Skapa binary_sensor (på/av)",
+          "create_sensor": "Skapa sensor (visar aktuellt/nästa event)"
+        }
+      }
+    },
+    "error": {
+      "no_sources": "Välj minst en källkalender",
+      "no_sensor_type": "Välj minst en sensor-typ (binary_sensor och/eller sensor)"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Redigera aktivitetssensor",
+        "data": {
+          "name": "Namn",
+          "sources": "Källkalendrar (välj flera)",
+          "icon": "Ikon",
+          "picture": "Bild",
+          "field": "Fält att matcha mot",
+          "include": "Inkludera bara event som innehåller (ex: Zoo, Djurpark)",
+          "exclude": "Uteslut event som innehåller (ex: Zoo, Privat)",
+          "use_regex": "Tolka orden som regex-mönster",
+          "case_sensitive": "Skiftlägeskänslig",
+          "trigger_mode": "Sensorn ska vara \"på\" när",
+          "create_binary_sensor": "Skapa binary_sensor (på/av)",
+          "create_sensor": "Skapa sensor (visar aktuellt/nästa event)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "trigger_mode": {
+      "options": {
+        "active_now": "Ett event pågår just nu",
+        "today": "Ett event inträffar någon gång idag"
+      }
+    }
+  }
+}
