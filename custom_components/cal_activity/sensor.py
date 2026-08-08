@@ -20,10 +20,14 @@ from .activity import (
 from .const import (
     CONF_CREATE_SENSOR,
     CONF_ICON,
+    CONF_KIND,
     CONF_NAME,
     CONF_PICTURE,
     DEFAULT_ACTIVITY_ICON,
+    DEFAULT_COUNTDOWN_ICON,
+    KIND_COUNTDOWN,
 )
+from .life_event import LifeEventCoordinator, async_get_or_create_life_event_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +36,11 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     if not entry.data.get(CONF_CREATE_SENSOR, True):
+        return
+
+    if entry.data.get(CONF_KIND) == KIND_COUNTDOWN:
+        coordinator = await async_get_or_create_life_event_coordinator(hass, entry)
+        async_add_entities([CountdownSensor(coordinator, entry)])
         return
 
     coordinator = await async_get_or_create_coordinator(hass, entry)
@@ -87,6 +96,49 @@ class ActivitySensor(CoordinatorEntity, SensorEntity):
             if next_event.location:
                 attrs["location"] = next_event.location
         failed = (self.coordinator.data or {}).get("failed") or []
+        if failed:
+            attrs["failed_sources"] = failed
+        return attrs
+
+
+class CountdownSensor(CoordinatorEntity, SensorEntity):
+    """State = whole days remaining until the configured date or matched calendar event."""
+
+    _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "d"
+
+    def __init__(self, coordinator: LifeEventCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_countdown"
+        self._attr_name = entry.data.get(CONF_NAME, "Nedräkning")
+
+    @property
+    def icon(self) -> str:
+        return self._entry.data.get(CONF_ICON) or DEFAULT_COUNTDOWN_ICON
+
+    @property
+    def entity_picture(self) -> str | None:
+        return self._entry.data.get(CONF_PICTURE) or None
+
+    @property
+    def native_value(self) -> int | None:
+        return (self.coordinator.data or {}).get("days_remaining")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        data = self.coordinator.data or {}
+        attrs: dict = {}
+        next_date = data.get("next_date")
+        if next_date:
+            attrs["next_date"] = next_date.isoformat()
+        if data.get("label"):
+            attrs["label"] = data["label"]
+        if data.get("years") is not None:
+            attrs["years"] = data["years"]
+        if data.get("passed"):
+            attrs["passed"] = True
+        failed = data.get("failed") or []
         if failed:
             attrs["failed_sources"] = failed
         return attrs

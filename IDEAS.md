@@ -34,15 +34,16 @@
   matchande event denna vecka"
 - [ ] Möjlighet att koppla en automation-mall direkt från panelen (förslag
   på trigger-YAML)
-- [ ] "Life event"-liknande sensorer (typ LifeEvent-integrationen):
-  återkommande årliga händelser (födelsedagar, namnsdagar, jubileum) med
-  attribut som antal dagar kvar, nästa datum, ålder/antal år
-- [ ] Nedräkningssensor (`sensor` med t.ex. state = antal dagar/timmar kvar)
-  kopplad till antingen ett kalenderevent eller ett fristående datum man
-  matar in direkt i sensorns konfiguration
+- [x] "Life event"-liknande sensorer / nedräkningssensor: ny sensor-"kind"
+  `countdown` (`life_event.py`) med state = antal hela dagar kvar. Datumkälla
+  är antingen ett fast datum (återkommande varje år som förval, räknar
+  ålder/antal år - t.ex. födelsedagar, namnsdagar, jubileum) eller ett
+  matchande kalenderevent (samma käll-/filtermekanism som aktivitetssensorn).
+  `binary_sensor` är "på" den dag datumet/eventet inträffar. Går att skapa
+  och redigera både via sidopanelen och Inställningar → Enheter & tjänster.
 - [ ] Konfigurerbart pollningsintervall (idag hårdkodat till 5 min) via
   options flow eller panelen
-- [ ] Diagnostics-stöd (`diagnostics.py`) för att exportera felsökningsdata
+- [x] Diagnostics-stöd (`diagnostics.py`) för att exportera felsökningsdata
 
 ## Kända begränsningar
 - Pollar källkalendrarna var 5:e minut (hårdkodat) via

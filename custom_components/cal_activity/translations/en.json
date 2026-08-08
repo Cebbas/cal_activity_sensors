@@ -2,46 +2,77 @@
   "config": {
     "step": {
       "user": {
-        "title": "Create activity sensor",
-        "description": "Creates sensors showing whether a filtered event is happening right now / what's next. Leave include/exclude empty for no filtering.",
+        "title": "Välj sensor-typ",
+        "menu_options": {
+          "activity": "Aktivitet (kalenderevent pågår/inträffar)",
+          "countdown": "Nedräkning / livshändelse (dagar kvar)"
+        }
+      },
+      "activity": {
+        "title": "Skapa aktivitetssensor",
+        "description": "Skapar sensorer som visar om ett filtrerat event pågår just nu / vad nästa är. Lämna include/exclude tomma för att inte filtrera alls.",
         "data": {
-          "name": "Name",
-          "sources": "Source calendars (select multiple)",
-          "icon": "Icon",
-          "picture": "Picture",
-          "field": "Field to match against",
-          "include": "Only include events containing (e.g. Zoo, Petting Zoo)",
-          "exclude": "Exclude events containing (e.g. Zoo, Private)",
-          "use_regex": "Treat the words as regex patterns",
-          "case_sensitive": "Case sensitive",
-          "trigger_mode": "The sensor should be \"on\" when",
-          "create_binary_sensor": "Create binary_sensor (on/off)",
-          "create_sensor": "Create sensor (shows current/next event)"
+          "name": "Namn",
+          "sources": "Källkalendrar (välj flera)",
+          "icon": "Ikon",
+          "picture": "Bild",
+          "field": "Fält att matcha mot",
+          "include": "Inkludera bara event som innehåller (ex: Zoo, Djurpark)",
+          "exclude": "Uteslut event som innehåller (ex: Zoo, Privat)",
+          "use_regex": "Tolka orden som regex-mönster",
+          "case_sensitive": "Skiftlägeskänslig",
+          "trigger_mode": "Sensorn ska vara \"på\" när",
+          "create_binary_sensor": "Skapa binary_sensor (på/av)",
+          "create_sensor": "Skapa sensor (visar aktuellt/nästa event)"
+        }
+      },
+      "countdown": {
+        "title": "Skapa nedräkning / livshändelse",
+        "description": "Visar antal dagar kvar till ett fast datum (t.ex. födelsedag, namnsdag, jubileum) eller till nästa matchande kalenderevent.",
+        "data": {
+          "name": "Namn",
+          "icon": "Ikon",
+          "picture": "Bild",
+          "date_source": "Datumkälla",
+          "date": "Datum (ÅÅÅÅ-MM-DD), bara vid fast datum",
+          "recurring": "Återkommande varje år (räknar ålder/antal år)",
+          "sources": "Källkalendrar, bara vid kalenderevent",
+          "field": "Fält att matcha mot",
+          "include": "Inkludera bara event som innehåller (ex: Bröllopsdag)",
+          "exclude": "Uteslut event som innehåller",
+          "use_regex": "Tolka orden som regex-mönster",
+          "case_sensitive": "Skiftlägeskänslig",
+          "create_binary_sensor": "Skapa binary_sensor (på den dagen)",
+          "create_sensor": "Skapa sensor (visar dagar kvar)"
         }
       }
     },
     "error": {
-      "no_sources": "Select at least one source calendar",
-      "no_sensor_type": "Select at least one sensor type (binary_sensor and/or sensor)"
+      "no_sources": "Välj minst en källkalender",
+      "no_sensor_type": "Välj minst en sensor-typ (binary_sensor och/eller sensor)",
+      "no_date": "Ange ett datum"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Edit activity sensor",
+        "title": "Redigera sensor",
         "data": {
-          "name": "Name",
-          "sources": "Source calendars (select multiple)",
-          "icon": "Icon",
-          "picture": "Picture",
-          "field": "Field to match against",
-          "include": "Only include events containing (e.g. Zoo, Petting Zoo)",
-          "exclude": "Exclude events containing (e.g. Zoo, Private)",
-          "use_regex": "Treat the words as regex patterns",
-          "case_sensitive": "Case sensitive",
-          "trigger_mode": "The sensor should be \"on\" when",
-          "create_binary_sensor": "Create binary_sensor (on/off)",
-          "create_sensor": "Create sensor (shows current/next event)"
+          "name": "Namn",
+          "sources": "Källkalendrar",
+          "icon": "Ikon",
+          "picture": "Bild",
+          "field": "Fält att matcha mot",
+          "include": "Inkludera bara event som innehåller",
+          "exclude": "Uteslut event som innehåller",
+          "use_regex": "Tolka orden som regex-mönster",
+          "case_sensitive": "Skiftlägeskänslig",
+          "trigger_mode": "Sensorn ska vara \"på\" när",
+          "date_source": "Datumkälla",
+          "date": "Datum (ÅÅÅÅ-MM-DD)",
+          "recurring": "Återkommande varje år (räknar ålder/antal år)",
+          "create_binary_sensor": "Skapa binary_sensor",
+          "create_sensor": "Skapa sensor"
         }
       }
     }
@@ -49,8 +80,14 @@
   "selector": {
     "trigger_mode": {
       "options": {
-        "active_now": "An event is happening right now",
-        "today": "An event happens at some point today"
+        "active_now": "Ett event pågår just nu",
+        "today": "Ett event inträffar någon gång idag"
+      }
+    },
+    "date_source": {
+      "options": {
+        "manual": "Fast datum",
+        "calendar": "Kalenderevent"
       }
     }
   }

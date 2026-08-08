@@ -18,4 +18,19 @@ FILTER_FIELDS = ["any", "summary", "description", "location"]
 
 DEFAULT_ACTIVITY_ICON = "mdi:calendar-check"
 
+CONF_KIND = "kind"
+KIND_ACTIVITY = "activity"
+KIND_COUNTDOWN = "countdown"
+KINDS = [KIND_ACTIVITY, KIND_COUNTDOWN]
+
+CONF_DATE_SOURCE = "date_source"
+DATE_SOURCE_MANUAL = "manual"
+DATE_SOURCE_CALENDAR = "calendar"
+DATE_SOURCES = [DATE_SOURCE_MANUAL, DATE_SOURCE_CALENDAR]
+
+CONF_DATE = "date"
+CONF_RECURRING = "recurring"
+
+DEFAULT_COUNTDOWN_ICON = "mdi:calendar-star"
+
 PLATFORMS = ["binary_sensor", "sensor"]

@@ -101,7 +101,7 @@ class CalActivityPanel extends HTMLElement {
         .cc-log-time { color: var(--secondary-text-color); flex-shrink: 0; white-space: nowrap; }
       </style>
       <h1><ha-icon icon="mdi:motion-sensor"></ha-icon>Cal Activity Sensors</h1>
-      <p class="subtitle">Skapar en binary_sensor (på/av) och/eller sensor (visar aktuellt/nästa event) för ett filtrerat urval av kalenderaktiviteter.</p>
+      <p class="subtitle">Skapar en binary_sensor (på/av) och/eller sensor (visar aktuellt/nästa event) för ett filtrerat urval av kalenderaktiviteter - eller en nedräkning (dagar kvar) till ett fast datum eller kalenderevent, t.ex. födelsedagar och jubileum.</p>
       <div id="root">Laddar…</div>
     `;
     await this._reload();
@@ -165,7 +165,10 @@ class CalActivityPanel extends HTMLElement {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "cc-subtab" + (item.entry_id === activeKey ? " active" : "");
-      btn.textContent = item.name;
+      const icon = document.createElement("ha-icon");
+      icon.setAttribute("icon", item.kind === "countdown" ? "mdi:cake-variant" : "mdi:calendar-check");
+      btn.appendChild(icon);
+      btn.append(item.name);
       btn.onclick = () => onSelect(item.entry_id);
       bar.appendChild(btn);
     });
@@ -479,6 +482,225 @@ class CalActivityPanel extends HTMLElement {
     return select;
   }
 
+  _buildKindSelect(value) {
+    const select = document.createElement("select");
+    [
+      { value: "activity", label: "Aktivitet (event pågår just nu / idag)" },
+      { value: "countdown", label: "Nedräkning / livshändelse (dagar kvar)" },
+    ].forEach(({ value: v, label }) => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = label;
+      if ((value || "activity") === v) opt.selected = true;
+      select.appendChild(opt);
+    });
+    return select;
+  }
+
+  _buildDateSourceSelect(value) {
+    const select = document.createElement("select");
+    [
+      { value: "manual", label: "Fast datum" },
+      { value: "calendar", label: "Kalenderevent" },
+    ].forEach(({ value: v, label }) => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = label;
+      if ((value || "manual") === v) opt.selected = true;
+      select.appendChild(opt);
+    });
+    return select;
+  }
+
+  _buildSensorTypeControls(createBinary, createSensor, labels) {
+    const wrap = document.createElement("div");
+    wrap.className = "cc-row";
+    const binaryLabel = document.createElement("label");
+    const binaryCb = document.createElement("input");
+    binaryCb.type = "checkbox";
+    binaryCb.checked = createBinary;
+    binaryLabel.appendChild(binaryCb);
+    binaryLabel.append(" " + labels.binary);
+    const sensorLabel = document.createElement("label");
+    const sensorCb = document.createElement("input");
+    sensorCb.type = "checkbox";
+    sensorCb.checked = createSensor;
+    sensorLabel.appendChild(sensorCb);
+    sensorLabel.append(" " + labels.sensor);
+    wrap.appendChild(binaryLabel);
+    wrap.appendChild(sensorLabel);
+    return { element: wrap, getBinary: () => binaryCb.checked, getSensor: () => sensorCb.checked };
+  }
+
+  // Everything below the name field for an "activity" kind sensor - shared
+  // between the create card and the edit card so the two don't drift apart.
+  _buildActivityFieldsSection(entry) {
+    entry = entry || {};
+    const el = document.createElement("div");
+
+    const iconLabel = document.createElement("div");
+    iconLabel.className = "cc-section-title";
+    iconLabel.textContent = "Ikon";
+    el.appendChild(iconLabel);
+    const iconPicker = this._buildIconPicker(entry.icon || "");
+    el.appendChild(iconPicker.element);
+
+    const pictureLabel = document.createElement("div");
+    pictureLabel.className = "cc-section-title";
+    pictureLabel.textContent = "Bild";
+    el.appendChild(pictureLabel);
+    const picturePicker = this._buildPicturePicker(entry.picture || "");
+    el.appendChild(picturePicker.element);
+
+    const sourcesLabel = document.createElement("div");
+    sourcesLabel.className = "cc-section-title";
+    sourcesLabel.textContent = "Källkalendrar";
+    el.appendChild(sourcesLabel);
+    const sourcePicker = this._buildSourcePicker(entry.sources || []);
+    el.appendChild(sourcePicker.element);
+
+    const filterLabel = document.createElement("div");
+    filterLabel.className = "cc-section-title";
+    filterLabel.textContent = "Filter";
+    el.appendChild(filterLabel);
+    const filterControls = this._buildFilterFieldsControls(entry.filter || {});
+    el.appendChild(filterControls.element);
+
+    const triggerLabel = document.createElement("div");
+    triggerLabel.className = "cc-section-title";
+    triggerLabel.textContent = 'binary_sensor ska vara "på" när...';
+    el.appendChild(triggerLabel);
+    const triggerRow = document.createElement("div");
+    triggerRow.className = "cc-row";
+    const triggerSelect = this._buildTriggerModeSelect(entry.trigger_mode);
+    triggerRow.appendChild(triggerSelect);
+    el.appendChild(triggerRow);
+
+    const sensorTypeLabel = document.createElement("div");
+    sensorTypeLabel.className = "cc-section-title";
+    sensorTypeLabel.textContent = "Sensor-typer att skapa";
+    el.appendChild(sensorTypeLabel);
+    const sensorTypes = this._buildSensorTypeControls(
+      entry.create_binary_sensor !== false,
+      entry.create_sensor !== false,
+      { binary: "binary_sensor (på/av)", sensor: "sensor (aktuellt/nästa event)" }
+    );
+    el.appendChild(sensorTypes.element);
+
+    return {
+      element: el,
+      getValues: () => ({
+        icon: iconPicker.getValue(),
+        picture: picturePicker.getValue(),
+        sources: sourcePicker.getSelected(),
+        ...filterControls.getValues(),
+        trigger_mode: triggerSelect.value,
+        create_binary_sensor: sensorTypes.getBinary(),
+        create_sensor: sensorTypes.getSensor(),
+      }),
+    };
+  }
+
+  // Everything below the name field for a "countdown" kind sensor. Manual-
+  // date and calendar-linked fields are both built up front and toggled with
+  // CSS so switching date_source doesn't lose whatever the user already
+  // typed into the other block.
+  _buildCountdownFieldsSection(entry) {
+    entry = entry || {};
+    const el = document.createElement("div");
+
+    const iconLabel = document.createElement("div");
+    iconLabel.className = "cc-section-title";
+    iconLabel.textContent = "Ikon";
+    el.appendChild(iconLabel);
+    const iconPicker = this._buildIconPicker(entry.icon || "");
+    el.appendChild(iconPicker.element);
+
+    const pictureLabel = document.createElement("div");
+    pictureLabel.className = "cc-section-title";
+    pictureLabel.textContent = "Bild";
+    el.appendChild(pictureLabel);
+    const picturePicker = this._buildPicturePicker(entry.picture || "");
+    el.appendChild(picturePicker.element);
+
+    const sourceLabel = document.createElement("div");
+    sourceLabel.className = "cc-section-title";
+    sourceLabel.textContent = "Datumkälla";
+    el.appendChild(sourceLabel);
+    const sourceRow = document.createElement("div");
+    sourceRow.className = "cc-row";
+    const dateSourceSelect = this._buildDateSourceSelect(entry.date_source);
+    sourceRow.appendChild(dateSourceSelect);
+    el.appendChild(sourceRow);
+
+    const manualBlock = document.createElement("div");
+    const dateRow = document.createElement("div");
+    dateRow.className = "cc-row";
+    const dateInput = document.createElement("input");
+    dateInput.type = "date";
+    dateInput.value = entry.date || "";
+    dateRow.appendChild(dateInput);
+    manualBlock.appendChild(dateRow);
+    const recurringLabel = document.createElement("label");
+    const recurringCb = document.createElement("input");
+    recurringCb.type = "checkbox";
+    recurringCb.checked = entry.recurring !== false;
+    recurringLabel.appendChild(recurringCb);
+    recurringLabel.append(" Återkommande varje år (räknar ålder/antal år)");
+    manualBlock.appendChild(recurringLabel);
+
+    const calendarBlock = document.createElement("div");
+    const calSourcesLabel = document.createElement("div");
+    calSourcesLabel.className = "cc-section-title";
+    calSourcesLabel.textContent = "Källkalendrar";
+    calendarBlock.appendChild(calSourcesLabel);
+    const sourcePicker = this._buildSourcePicker(entry.sources || []);
+    calendarBlock.appendChild(sourcePicker.element);
+    const calFilterLabel = document.createElement("div");
+    calFilterLabel.className = "cc-section-title";
+    calFilterLabel.textContent = "Filter";
+    calendarBlock.appendChild(calFilterLabel);
+    const filterControls = this._buildFilterFieldsControls(entry.filter || {});
+    calendarBlock.appendChild(filterControls.element);
+
+    el.appendChild(manualBlock);
+    el.appendChild(calendarBlock);
+
+    const syncVisibility = () => {
+      const isCalendar = dateSourceSelect.value === "calendar";
+      manualBlock.style.display = isCalendar ? "none" : "block";
+      calendarBlock.style.display = isCalendar ? "block" : "none";
+    };
+    dateSourceSelect.onchange = syncVisibility;
+    syncVisibility();
+
+    const sensorTypeLabel = document.createElement("div");
+    sensorTypeLabel.className = "cc-section-title";
+    sensorTypeLabel.textContent = "Sensor-typer att skapa";
+    el.appendChild(sensorTypeLabel);
+    const sensorTypes = this._buildSensorTypeControls(
+      entry.create_binary_sensor !== false,
+      entry.create_sensor !== false,
+      { binary: "binary_sensor (på den dagen)", sensor: "sensor (dagar kvar)" }
+    );
+    el.appendChild(sensorTypes.element);
+
+    return {
+      element: el,
+      getValues: () => ({
+        icon: iconPicker.getValue(),
+        picture: picturePicker.getValue(),
+        date_source: dateSourceSelect.value,
+        date: dateInput.value || "",
+        recurring: recurringCb.checked,
+        sources: sourcePicker.getSelected(),
+        ...filterControls.getValues(),
+        create_binary_sensor: sensorTypes.getBinary(),
+        create_sensor: sensorTypes.getSensor(),
+      }),
+    };
+  }
+
   _buildActivityLogBox(entryId) {
     const box = document.createElement("div");
 
@@ -529,11 +751,12 @@ class CalActivityPanel extends HTMLElement {
   _renderEntryCard(entry) {
     const card = document.createElement("div");
     card.className = "cc-card";
+    const isCountdown = entry.kind === "countdown";
 
     const header = document.createElement("div");
     header.className = "cc-card-header";
     const icon = document.createElement("ha-icon");
-    icon.setAttribute("icon", entry.icon || "mdi:calendar-check");
+    icon.setAttribute("icon", entry.icon || (isCountdown ? "mdi:calendar-star" : "mdi:calendar-check"));
     header.appendChild(icon);
     if (entry.picture) {
       const avatar = document.createElement("img");
@@ -548,65 +771,18 @@ class CalActivityPanel extends HTMLElement {
     header.appendChild(nameInput);
     card.appendChild(header);
 
-    const iconLabel = document.createElement("div");
-    iconLabel.className = "cc-section-title";
-    iconLabel.textContent = "Ikon";
-    card.appendChild(iconLabel);
-    const iconPicker = this._buildIconPicker(entry.icon);
-    card.appendChild(iconPicker.element);
+    const kindNote = document.createElement("p");
+    kindNote.className = "subtitle";
+    kindNote.style.margin = "0 0 12px 0";
+    kindNote.textContent = isCountdown
+      ? "Nedräkning / livshändelse – visar antal dagar kvar till ett fast datum eller kalenderevent."
+      : "Aktivitetssensor – visar om ett filtrerat kalenderevent pågår just nu / idag.";
+    card.appendChild(kindNote);
 
-    const pictureLabel = document.createElement("div");
-    pictureLabel.className = "cc-section-title";
-    pictureLabel.textContent = "Bild";
-    card.appendChild(pictureLabel);
-    const picturePicker = this._buildPicturePicker(entry.picture);
-    card.appendChild(picturePicker.element);
-
-    const sourcesLabel = document.createElement("div");
-    sourcesLabel.className = "cc-section-title";
-    sourcesLabel.textContent = "Källkalendrar";
-    card.appendChild(sourcesLabel);
-    const sourcePicker = this._buildSourcePicker(entry.sources);
-    card.appendChild(sourcePicker.element);
-
-    const filterLabel = document.createElement("div");
-    filterLabel.className = "cc-section-title";
-    filterLabel.textContent = "Filter";
-    card.appendChild(filterLabel);
-    const filterControls = this._buildFilterFieldsControls(entry.filter);
-    card.appendChild(filterControls.element);
-
-    const triggerLabel = document.createElement("div");
-    triggerLabel.className = "cc-section-title";
-    triggerLabel.textContent = 'binary_sensor ska vara "på" när...';
-    card.appendChild(triggerLabel);
-    const triggerRow = document.createElement("div");
-    triggerRow.className = "cc-row";
-    const triggerSelect = this._buildTriggerModeSelect(entry.trigger_mode);
-    triggerRow.appendChild(triggerSelect);
-    card.appendChild(triggerRow);
-
-    const sensorTypeLabel = document.createElement("div");
-    sensorTypeLabel.className = "cc-section-title";
-    sensorTypeLabel.textContent = "Sensor-typer att skapa";
-    card.appendChild(sensorTypeLabel);
-    const sensorTypeRow = document.createElement("div");
-    sensorTypeRow.className = "cc-row";
-    const binaryLabel = document.createElement("label");
-    const binaryCb = document.createElement("input");
-    binaryCb.type = "checkbox";
-    binaryCb.checked = entry.create_binary_sensor;
-    binaryLabel.appendChild(binaryCb);
-    binaryLabel.append(" binary_sensor (på/av)");
-    const sensorLabel = document.createElement("label");
-    const sensorCb = document.createElement("input");
-    sensorCb.type = "checkbox";
-    sensorCb.checked = entry.create_sensor;
-    sensorLabel.appendChild(sensorCb);
-    sensorLabel.append(" sensor (aktuellt/nästa event)");
-    sensorTypeRow.appendChild(binaryLabel);
-    sensorTypeRow.appendChild(sensorLabel);
-    card.appendChild(sensorTypeRow);
+    const fieldsSection = isCountdown
+      ? this._buildCountdownFieldsSection(entry)
+      : this._buildActivityFieldsSection(entry);
+    card.appendChild(fieldsSection.element);
 
     const errorBox = document.createElement("div");
     errorBox.className = "cc-error";
@@ -619,24 +795,14 @@ class CalActivityPanel extends HTMLElement {
     saveBtn.textContent = "Spara";
     saveBtn.onclick = async () => {
       errorBox.textContent = "";
-      const selectedSources = sourcePicker.getSelected();
-      const values = filterControls.getValues();
+      const values = fieldsSection.getValues();
       try {
         await this._hass.callWS({
           type: "cal_activity/update_entry",
           entry_id: entry.entry_id,
+          kind: entry.kind || "activity",
           name: nameInput.value || entry.name,
-          sources: selectedSources,
-          icon: iconPicker.getValue(),
-          picture: picturePicker.getValue(),
-          field: values.field,
-          include: values.include,
-          exclude: values.exclude,
-          use_regex: values.use_regex,
-          case_sensitive: values.case_sensitive,
-          trigger_mode: triggerSelect.value,
-          create_binary_sensor: binaryCb.checked,
-          create_sensor: sensorCb.checked,
+          ...values,
         });
         await this._reload();
       } catch (err) {
@@ -668,76 +834,37 @@ class CalActivityPanel extends HTMLElement {
 
     const title = document.createElement("div");
     title.className = "cc-section-title";
-    title.textContent = "Skapa ny aktivitetssensor";
+    title.textContent = "Skapa ny sensor";
     card.appendChild(title);
+
+    const kindRow = document.createElement("div");
+    kindRow.className = "cc-row";
+    const kindSelect = this._buildKindSelect("activity");
+    kindRow.appendChild(kindSelect);
+    card.appendChild(kindRow);
 
     const nameRow = document.createElement("div");
     nameRow.className = "cc-row";
     const nameInput = document.createElement("input");
     nameInput.type = "text";
-    nameInput.placeholder = "Namn, t.ex. Zoo-besök";
+    nameInput.placeholder = "Namn, t.ex. Zoo-besök eller Mammas födelsedag";
     nameRow.appendChild(nameInput);
     card.appendChild(nameRow);
 
-    const iconLabel = document.createElement("div");
-    iconLabel.className = "cc-section-title";
-    iconLabel.textContent = "Ikon";
-    card.appendChild(iconLabel);
-    const iconPicker = this._buildIconPicker("");
-    card.appendChild(iconPicker.element);
+    const fieldsContainer = document.createElement("div");
+    card.appendChild(fieldsContainer);
 
-    const pictureLabel = document.createElement("div");
-    pictureLabel.className = "cc-section-title";
-    pictureLabel.textContent = "Bild";
-    card.appendChild(pictureLabel);
-    const picturePicker = this._buildPicturePicker("");
-    card.appendChild(picturePicker.element);
-
-    const sourcesLabel = document.createElement("div");
-    sourcesLabel.className = "cc-section-title";
-    sourcesLabel.textContent = "Källkalendrar";
-    card.appendChild(sourcesLabel);
-    const sourcePicker = this._buildSourcePicker([]);
-    card.appendChild(sourcePicker.element);
-
-    const filterLabel = document.createElement("div");
-    filterLabel.className = "cc-section-title";
-    filterLabel.textContent = "Filter";
-    card.appendChild(filterLabel);
-    const filterControls = this._buildFilterFieldsControls({});
-    card.appendChild(filterControls.element);
-
-    const triggerLabel = document.createElement("div");
-    triggerLabel.className = "cc-section-title";
-    triggerLabel.textContent = 'binary_sensor ska vara "på" när...';
-    card.appendChild(triggerLabel);
-    const triggerRow = document.createElement("div");
-    triggerRow.className = "cc-row";
-    const triggerSelect = this._buildTriggerModeSelect("active_now");
-    triggerRow.appendChild(triggerSelect);
-    card.appendChild(triggerRow);
-
-    const sensorTypeLabel = document.createElement("div");
-    sensorTypeLabel.className = "cc-section-title";
-    sensorTypeLabel.textContent = "Sensor-typer att skapa";
-    card.appendChild(sensorTypeLabel);
-    const sensorTypeRow = document.createElement("div");
-    sensorTypeRow.className = "cc-row";
-    const binaryLabel = document.createElement("label");
-    const binaryCb = document.createElement("input");
-    binaryCb.type = "checkbox";
-    binaryCb.checked = true;
-    binaryLabel.appendChild(binaryCb);
-    binaryLabel.append(" binary_sensor (på/av)");
-    const sensorLabel = document.createElement("label");
-    const sensorCb = document.createElement("input");
-    sensorCb.type = "checkbox";
-    sensorCb.checked = true;
-    sensorLabel.appendChild(sensorCb);
-    sensorLabel.append(" sensor (aktuellt/nästa event)");
-    sensorTypeRow.appendChild(binaryLabel);
-    sensorTypeRow.appendChild(sensorLabel);
-    card.appendChild(sensorTypeRow);
+    let fieldsSection = null;
+    const renderFields = () => {
+      fieldsContainer.innerHTML = "";
+      fieldsSection =
+        kindSelect.value === "countdown"
+          ? this._buildCountdownFieldsSection({})
+          : this._buildActivityFieldsSection({});
+      fieldsContainer.appendChild(fieldsSection.element);
+    };
+    kindSelect.onchange = renderFields;
+    renderFields();
 
     const errorBox = document.createElement("div");
     errorBox.className = "cc-error";
@@ -747,35 +874,36 @@ class CalActivityPanel extends HTMLElement {
     createBtn.textContent = "Skapa sensor";
     createBtn.onclick = async () => {
       errorBox.textContent = "";
-      const selectedSources = sourcePicker.getSelected();
       if (!nameInput.value.trim()) {
         errorBox.textContent = "Ange ett namn";
         return;
       }
-      if (!selectedSources.length) {
+      const kind = kindSelect.value;
+      const values = fieldsSection.getValues();
+      if (kind === "activity" && !values.sources.length) {
         errorBox.textContent = "Välj minst en källkalender";
         return;
       }
-      if (!binaryCb.checked && !sensorCb.checked) {
+      if (kind === "countdown") {
+        if (values.date_source === "manual" && !values.date) {
+          errorBox.textContent = "Ange ett datum";
+          return;
+        }
+        if (values.date_source === "calendar" && !values.sources.length) {
+          errorBox.textContent = "Välj minst en källkalender";
+          return;
+        }
+      }
+      if (!values.create_binary_sensor && !values.create_sensor) {
         errorBox.textContent = "Välj minst en sensor-typ";
         return;
       }
-      const values = filterControls.getValues();
       try {
         const result = await this._hass.callWS({
           type: "cal_activity/create_entry",
+          kind,
           name: nameInput.value.trim(),
-          sources: selectedSources,
-          icon: iconPicker.getValue(),
-          picture: picturePicker.getValue(),
-          field: values.field,
-          include: values.include,
-          exclude: values.exclude,
-          use_regex: values.use_regex,
-          case_sensitive: values.case_sensitive,
-          trigger_mode: triggerSelect.value,
-          create_binary_sensor: binaryCb.checked,
-          create_sensor: sensorCb.checked,
+          ...values,
         });
         this._activeKey = result.entry_id;
         await this._reload();
