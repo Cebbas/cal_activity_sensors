@@ -1,14 +1,16 @@
-"""Sensor platform for Cal Activity Sensors.
+"""Binary sensor platform for Cal Activity Sensors.
 
-Each config entry creates exactly one entity here - no separate binary_sensor.
-On/off state that used to live on a paired binary_sensor is now just the
-`active` attribute on this sensor instead.
+The single entity per config entry - state is native on/off ("active" or
+not), with everything else (which event, next date, days remaining, ...) as
+attributes. A plain `sensor` can't express on/off as its actual state without
+resorting to string literals, so this is genuinely a binary_sensor rather
+than a sensor with an `active` attribute.
 """
 from __future__ import annotations
 
 import logging
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -43,26 +45,22 @@ async def async_setup_entry(
 ) -> None:
     if entry.data.get(CONF_KIND) == KIND_COUNTDOWN:
         coordinator = await async_get_or_create_life_event_coordinator(hass, entry)
-        async_add_entities([CountdownSensor(coordinator, entry)])
+        async_add_entities([CountdownBinarySensor(coordinator, entry)])
         return
 
     coordinator = await async_get_or_create_coordinator(hass, entry)
-    async_add_entities([ActivitySensor(coordinator, entry)])
+    async_add_entities([ActivityBinarySensor(coordinator, entry)])
 
 
-class ActivitySensor(CoordinatorEntity, SensorEntity):
-    """State = title of the currently active (or next upcoming) matching event.
-
-    `active` attribute mirrors what used to be a separate binary_sensor: on
-    per the configured trigger_mode ("pågår just nu" or "inträffar idag").
-    """
+class ActivityBinarySensor(CoordinatorEntity, BinarySensorEntity):
+    """On per the configured trigger_mode ("pågår just nu" or "inträffar idag")."""
 
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: ActivitySensorCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_next"
+        self._attr_unique_id = f"{entry.entry_id}_active"
         self._attr_name = entry.data.get(CONF_NAME, "Aktivitet")
 
     @property
@@ -74,15 +72,12 @@ class ActivitySensor(CoordinatorEntity, SensorEntity):
         return self._entry.data.get(CONF_PICTURE) or None
 
     @property
-    def native_value(self) -> str:
+    def is_on(self) -> bool:
         now = dt_util.now()
         events = (self.coordinator.data or {}).get("events", [])
-        active = [e for e in events if event_is_active(e, now)]
-        if active:
-            return active[0].summary
-
-        upcoming = sorted([e for e in events if event_is_upcoming(e, now)], key=lambda e: str(e.start))
-        return upcoming[0].summary if upcoming else "Inga kommande event"
+        if self._entry.data.get(CONF_TRIGGER_MODE) == TRIGGER_MODE_TODAY:
+            return any(event_is_today(e, now) for e in events)
+        return any(event_is_active(e, now) for e in events)
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -92,15 +87,10 @@ class ActivitySensor(CoordinatorEntity, SensorEntity):
         upcoming = sorted([e for e in events if event_is_upcoming(e, now)], key=lambda e: str(e.start))
         today_count = sum(1 for e in events if event_is_today(e, now))
 
-        if self._entry.data.get(CONF_TRIGGER_MODE) == TRIGGER_MODE_TODAY:
-            is_active = any(event_is_today(e, now) for e in events)
-        else:
-            is_active = bool(active)
-
-        attrs: dict = {"active": is_active, "matches_today": today_count}
+        attrs: dict = {"matches_today": today_count}
         if active:
             attrs["current_event"] = active[0].summary
-            if is_active and self._entry.data.get(CONF_TRIGGER_MODE) != TRIGGER_MODE_TODAY:
+            if self._entry.data.get(CONF_TRIGGER_MODE) != TRIGGER_MODE_TODAY:
                 end = active[0].end
                 attrs["active_until"] = end.isoformat() if hasattr(end, "isoformat") else str(end)
         if upcoming:
@@ -120,16 +110,11 @@ class ActivitySensor(CoordinatorEntity, SensorEntity):
         return attrs
 
 
-class CountdownSensor(CoordinatorEntity, SensorEntity):
-    """State = whole days remaining until the configured date or matched calendar event.
-
-    `active` attribute mirrors what used to be a separate binary_sensor: on
-    for every day of the span (the single configured day, or every day of a
-    multi-day span like a trip - not just its first day).
-    """
+class CountdownBinarySensor(CoordinatorEntity, BinarySensorEntity):
+    """On for every day of the span - the single configured day, or every day
+    of a multi-day span like a trip, not just its first day."""
 
     _attr_has_entity_name = True
-    _attr_native_unit_of_measurement = "d"
 
     def __init__(self, coordinator: LifeEventCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
@@ -146,17 +131,19 @@ class CountdownSensor(CoordinatorEntity, SensorEntity):
         return self._entry.data.get(CONF_PICTURE) or None
 
     @property
-    def native_value(self) -> int | None:
-        return (self.coordinator.data or {}).get("days_remaining")
+    def is_on(self) -> bool:
+        return bool((self.coordinator.data or {}).get("is_current"))
 
     @property
     def extra_state_attributes(self) -> dict:
         data = self.coordinator.data or {}
-        is_active = bool(data.get("is_current"))
         passed = bool(data.get("passed"))
-        phase = "in_progress" if is_active else ("passed" if passed else "upcoming")
+        phase = "in_progress" if data.get("is_current") else ("passed" if passed else "upcoming")
 
-        attrs: dict = {"active": is_active, "phase": phase}
+        attrs: dict = {"phase": phase}
+        days_remaining = data.get("days_remaining")
+        if days_remaining is not None:
+            attrs["days_remaining"] = days_remaining
         next_date = data.get("next_date")
         if next_date:
             attrs["next_date"] = next_date.isoformat()

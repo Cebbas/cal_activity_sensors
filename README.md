@@ -1,10 +1,10 @@
 # Cal Activity Sensors – Home Assistant custom integration
 
-Bygger fristående `sensor`-entiteter från ett filtrerat urval av
-kalenderaktivitet – t.ex. en `sensor.zoo_besok` med attributet `active: true`
-när ett Zoo-event pågår, perfekt att trigga automationer på. Kan även skapa
-nedräknings-/livshändelsesensorer (dagar kvar till ett fast datum eller
-kalenderevent, t.ex. födelsedagar eller en resa).
+Bygger fristående `binary_sensor`-entiteter från ett filtrerat urval av
+kalenderaktivitet – t.ex. en `binary_sensor.zoo_besok` som är `on` när ett
+Zoo-event pågår, perfekt att trigga automationer på. Kan även skapa
+nedräknings-/livshändelsesensorer (t.ex. `on` på en födelsedag, eller under
+hela en resa), med dagar kvar och nästa datum som attribut.
 
 Detta var tidigare en del av [Cal Combiner](https://github.com/Cebbas/cal_combiner)
 men är utbrutet till en egen, fristående integration: den pratar bara med
@@ -34,14 +34,14 @@ egen flik i sidomenyn (kräver adminkonto). Där väljer du först typ:
   Google-kalender eller en sammanslagen kalender från Cal Combiner)
 - Sätt ett filter: fält att matcha mot (titel/beskrivning/plats/alla),
   inkludera/uteslut-ord, regex-läge, skiftlägeskänslighet
-- Välj om `active`-attributet ska vara sant när ett event pågår just nu,
-  eller när ett matchande event inträffar någon gång samma dag
+- Välj om sensorn ska vara "på" när ett event pågår just nu, eller när ett
+  matchande event inträffar någon gång samma dag
 
 **Nedräkning / livshändelse** (dagar kvar):
 - Ett fast datum (återkommande varje år som förval - räknar ålder/antal år,
   t.ex. födelsedagar, namnsdagar, jubileum) eller ett matchande kalenderevent
 - Valfritt slutdatum (eller kalenderns eget slutdatum) för flerdagshändelser
-  som en resa - `active` är då sant hela perioden, inte bara första dagen
+  som en resa - sensorn är då "på" hela perioden, inte bara första dagen
 
 Båda typerna låter dig sätta egen ikon och bild, och visar en logg över
 senaste ändringarna direkt på kortet.
@@ -53,21 +53,21 @@ Inställningar → Enheter & tjänster.
 
 ## 3. Vad du får
 
-Varje konfiguration skapar exakt en `sensor`-entitet - ingen separat
-`binary_sensor`, på/av-informationen är `active`-attributet:
+Varje konfiguration skapar exakt en `binary_sensor`-entitet - state är
+`on`/`off`, all annan information (vilket event, nästa datum, dagar kvar...)
+är attribut:
 
-- **Aktivitet**: state = titeln på pågående (eller näst kommande) matchande
-  event, attribut `active`, `active_until` (när det pågående eventet slutar),
-  `current_event`, `next_event`, `next_start`, `next_end`, `matches_today`,
-  `location`, `failed_sources`
-- **Nedräkning / livshändelse**: state = antal hela dagar kvar (till start,
-  eller kvar av perioden om den pågår), attribut `active`, `phase`
-  (`upcoming`/`in_progress`/`passed`), `days_until_start`, `next_date`,
-  `label`, `years`, `end_date`/`day_of_span`/`span_length` (flerdagshändelser),
-  `failed_sources`
+- **Aktivitet**: `on` enligt valt läge, attribut `current_event`
+  (+ `active_until` - när det pågående eventet slutar), `next_event`,
+  `next_start`, `next_end`, `matches_today`, `location`, `failed_sources`
+- **Nedräkning / livshändelse**: `on` den dag (eller hela perioden, för
+  flerdagshändelser) datumet/eventet inträffar, attribut `phase`
+  (`upcoming`/`in_progress`/`passed`), `days_remaining`, `days_until_start`,
+  `next_date`, `label`, `years`, `end_date`/`day_of_span`/`span_length`
+  (flerdagshändelser), `failed_sources`
 
 Exempel: en aktivitetssensor med källa = din Google-kalender och filter
-"inkludera: Zoo" ger en `sensor.zoo_besok` med `active: true` när ett
+"inkludera: Zoo" ger en `binary_sensor.zoo_besok` som är `on` när ett
 Zoo-event pågår (eller hela dagen zoo-eventet finns, om du valt det läget) –
 trigga automationer på det (t.ex. stäng av larmet, sätt på "borta"-läge,
 eller skicka en påminnelse).
@@ -88,11 +88,11 @@ Se `IDEAS.md` för en avbockningsbar lista över vad som är gjort och vad som
 ```
 custom_components/
   cal_activity/
-    __init__.py       # setup, registrerar panel + ws-api, städar ev. kvarblivna binary_sensor-poster
+    __init__.py       # setup, registrerar panel + ws-api, städar ev. kvarblivna entitetsposter
     activity.py          # coordinator + delad hämtnings-/filterlogik för aktivitetssensorer
     life_event.py            # coordinator + datumlogik för nedräknings-/livshändelsesensorer
     activity_log.py             # rullande "senaste händelser"-logg per sensor
-    sensor.py                       # den enda entitetsplattformen - både aktivitet och nedräkning
+    binary_sensor.py                # den enda entitetsplattformen - både aktivitet och nedräkning
     diagnostics.py                     # exporterbar felsökningsdata
     config_flow.py                        # UI för att lägga till/ändra en sensor
     panel.py                                 # registrerar sidopanelen + statiska filer

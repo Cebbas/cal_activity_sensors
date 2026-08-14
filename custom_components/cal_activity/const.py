@@ -32,4 +32,4 @@ CONF_RECURRING = "recurring"
 
 DEFAULT_COUNTDOWN_ICON = "mdi:calendar-star"
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["binary_sensor"]

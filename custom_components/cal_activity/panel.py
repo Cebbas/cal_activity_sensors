@@ -44,7 +44,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
                 "name": "cal-activity-panel",
                 "embed_iframe": False,
                 "trust_external": True,
-                "js_url": f"{_STATIC_URL}/cal-activity-panel.js?v=3",
+                "js_url": f"{_STATIC_URL}/cal-activity-panel.js?v=4",
             }
         },
         require_admin=True,

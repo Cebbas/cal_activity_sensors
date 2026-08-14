@@ -10,7 +10,7 @@
       },
       "activity": {
         "title": "Skapa aktivitetssensor",
-        "description": "Skapar sensorer som visar om ett filtrerat event pågår just nu / vad nästa är. Lämna include/exclude tomma för att inte filtrera alls.",
+        "description": "Skapar en sensor som är \"på\" när ett filtrerat event pågår just nu (eller idag). Lämna include/exclude tomma för att inte filtrera alls.",
         "data": {
           "name": "Namn",
           "sources": "Källkalendrar (välj flera)",
@@ -21,12 +21,12 @@
           "exclude": "Uteslut event som innehåller (ex: Zoo, Privat)",
           "use_regex": "Tolka orden som regex-mönster",
           "case_sensitive": "Skiftlägeskänslig",
-          "trigger_mode": "Attributet \"active\" ska vara på när"
+          "trigger_mode": "Sensorn ska vara \"på\" när"
         }
       },
       "countdown": {
         "title": "Skapa nedräkning / livshändelse",
-        "description": "Visar antal dagar kvar till ett fast datum (t.ex. födelsedag, namnsdag, jubileum) eller till nästa matchande kalenderevent.",
+        "description": "Skapar en sensor som är \"på\" den dag (eller hela perioden, för flerdagshändelser) ett fast datum eller kalenderevent inträffar - t.ex. födelsedag, namnsdag, jubileum eller en resa. Dagar kvar och nästa datum blir attribut.",
         "data": {
           "name": "Namn",
           "icon": "Ikon",
@@ -64,7 +64,7 @@
           "exclude": "Uteslut event som innehåller",
           "use_regex": "Tolka orden som regex-mönster",
           "case_sensitive": "Skiftlägeskänslig",
-          "trigger_mode": "Attributet \"active\" ska vara på när",
+          "trigger_mode": "Sensorn ska vara \"på\" när",
           "date_source": "Datumkälla",
           "date": "Datum (ÅÅÅÅ-MM-DD)",
           "date_end": "Slutdatum (ÅÅÅÅ-MM-DD), valfritt - för flerdagshändelser som en resa",

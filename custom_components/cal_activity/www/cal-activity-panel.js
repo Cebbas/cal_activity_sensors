@@ -101,7 +101,7 @@ class CalActivityPanel extends HTMLElement {
         .cc-log-time { color: var(--secondary-text-color); flex-shrink: 0; white-space: nowrap; }
       </style>
       <h1><ha-icon icon="mdi:motion-sensor"></ha-icon>Cal Activity Sensors</h1>
-      <p class="subtitle">Skapar en sensor (aktuellt/nästa event, med ett "active"-attribut för på/av) för ett filtrerat urval av kalenderaktiviteter - eller en nedräkning (dagar kvar) till ett fast datum eller kalenderevent, t.ex. födelsedagar och jubileum.</p>
+      <p class="subtitle">Skapar en binary_sensor (på/av) för ett filtrerat urval av kalenderaktiviteter, eller för en nedräkning (dagar kvar) till ett fast datum eller kalenderevent, t.ex. födelsedagar, jubileum eller en resa - med händelsetitel/nästa datum/dagar kvar som attribut.</p>
       <div id="root">Laddar…</div>
     `;
     await this._reload();
@@ -548,7 +548,7 @@ class CalActivityPanel extends HTMLElement {
 
     const triggerLabel = document.createElement("div");
     triggerLabel.className = "cc-section-title";
-    triggerLabel.textContent = 'Attributet "active" ska vara på när...';
+    triggerLabel.textContent = 'Sensorn ska vara "på" när...';
     el.appendChild(triggerLabel);
     const triggerRow = document.createElement("div");
     triggerRow.className = "cc-row";
@@ -740,8 +740,8 @@ class CalActivityPanel extends HTMLElement {
     kindNote.className = "subtitle";
     kindNote.style.margin = "0 0 12px 0";
     kindNote.textContent = isCountdown
-      ? "Nedräkning / livshändelse – visar antal dagar kvar till ett fast datum eller kalenderevent. Ange ett slutdatum (eller ett kalenderevent som redan är flera dagar långt) för att sensorn ska vara \"på\" hela perioden, t.ex. en resa."
-      : "Aktivitetssensor – visar om ett filtrerat kalenderevent pågår just nu / idag.";
+      ? "Nedräkning / livshändelse – \"på\" den dag ett fast datum eller kalenderevent inträffar, med dagar kvar som attribut. Ange ett slutdatum (eller ett kalenderevent som redan är flera dagar långt) för att sensorn ska vara \"på\" hela perioden, t.ex. en resa."
+      : "Aktivitetssensor – \"på\" när ett filtrerat kalenderevent pågår just nu / idag.";
     card.appendChild(kindNote);
 
     const fieldsSection = isCountdown
