@@ -11,6 +11,7 @@ from .const import (
     CONF_CREATE_BINARY,
     CONF_CREATE_SENSOR,
     CONF_DATE,
+    CONF_DATE_END,
     CONF_DATE_SOURCE,
     CONF_FILTER,
     CONF_ICON,
@@ -45,6 +46,7 @@ def _entry_to_dict(entry) -> dict:
     if kind == KIND_COUNTDOWN:
         result["date_source"] = entry.data.get(CONF_DATE_SOURCE, DATE_SOURCE_MANUAL)
         result["date"] = entry.data.get(CONF_DATE)
+        result["date_end"] = entry.data.get(CONF_DATE_END)
         result["recurring"] = entry.data.get(CONF_RECURRING, True)
     else:
         result["trigger_mode"] = entry.data.get(CONF_TRIGGER_MODE, TRIGGER_MODE_ACTIVE)
@@ -79,6 +81,13 @@ def _validate_kind_fields(connection, msg_id, msg) -> bool:
         if date_source == DATE_SOURCE_MANUAL and not msg.get("date"):
             connection.send_error(msg_id, "no_date", "Ange ett datum")
             return False
+        if (
+            date_source == DATE_SOURCE_MANUAL
+            and msg.get("date_end")
+            and msg["date_end"] < msg["date"]
+        ):
+            connection.send_error(msg_id, "end_before_start", "Slutdatumet kan inte vara före startdatumet")
+            return False
         if date_source == DATE_SOURCE_CALENDAR and not msg["sources"]:
             connection.send_error(msg_id, "no_sources", "Välj minst en källkalender")
             return False
@@ -110,6 +119,7 @@ def _validate_kind_fields(connection, msg_id, msg) -> bool:
         vol.Optional("kind", default=KIND_ACTIVITY): str,
         vol.Optional("date_source", default=DATE_SOURCE_MANUAL): str,
         vol.Optional("date"): vol.Any(str, None),
+        vol.Optional("date_end"): vol.Any(str, None),
         vol.Optional("recurring", default=True): bool,
     }
 )
@@ -148,6 +158,7 @@ async def ws_create_entry(hass: HomeAssistant, connection, msg):
         vol.Optional("kind", default=KIND_ACTIVITY): str,
         vol.Optional("date_source", default=DATE_SOURCE_MANUAL): str,
         vol.Optional("date"): vol.Any(str, None),
+        vol.Optional("date_end"): vol.Any(str, None),
         vol.Optional("recurring", default=True): bool,
     }
 )
@@ -188,6 +199,8 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
         changes.append("triggerläge ändrat")
     if kind == KIND_COUNTDOWN and msg.get("date") != entry.data.get(CONF_DATE):
         changes.append("datum ändrat")
+    if kind == KIND_COUNTDOWN and msg.get("date_end") != entry.data.get(CONF_DATE_END):
+        changes.append("slutdatum ändrat")
     if kind == KIND_COUNTDOWN and msg.get("recurring", True) != entry.data.get(CONF_RECURRING, True):
         changes.append("återkommande ändrat")
     if msg.get("icon") != entry.data.get(CONF_ICON):
@@ -207,6 +220,7 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
     if kind == KIND_COUNTDOWN:
         new_data[CONF_DATE_SOURCE] = msg.get("date_source", DATE_SOURCE_MANUAL)
         new_data[CONF_DATE] = msg.get("date") or None
+        new_data[CONF_DATE_END] = msg.get("date_end") or None
         new_data[CONF_RECURRING] = msg.get("recurring", True)
     else:
         new_data[CONF_TRIGGER_MODE] = msg["trigger_mode"]

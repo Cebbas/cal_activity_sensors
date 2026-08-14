@@ -35,6 +35,7 @@
           "picture": "Bild",
           "date_source": "Datumkälla",
           "date": "Datum (ÅÅÅÅ-MM-DD), bara vid fast datum",
+          "date_end": "Slutdatum (ÅÅÅÅ-MM-DD), valfritt - för flerdagshändelser som en resa",
           "recurring": "Återkommande varje år (räknar ålder/antal år)",
           "sources": "Källkalendrar, bara vid kalenderevent",
           "field": "Fält att matcha mot",
@@ -50,7 +51,8 @@
     "error": {
       "no_sources": "Välj minst en källkalender",
       "no_sensor_type": "Välj minst en sensor-typ (binary_sensor och/eller sensor)",
-      "no_date": "Ange ett datum"
+      "no_date": "Ange ett datum",
+      "end_before_start": "Slutdatumet kan inte vara före startdatumet"
     }
   },
   "options": {
@@ -70,6 +72,7 @@
           "trigger_mode": "Sensorn ska vara \"på\" när",
           "date_source": "Datumkälla",
           "date": "Datum (ÅÅÅÅ-MM-DD)",
+          "date_end": "Slutdatum (ÅÅÅÅ-MM-DD), valfritt - för flerdagshändelser som en resa",
           "recurring": "Återkommande varje år (räknar ålder/antal år)",
           "create_binary_sensor": "Skapa binary_sensor",
           "create_sensor": "Skapa sensor"

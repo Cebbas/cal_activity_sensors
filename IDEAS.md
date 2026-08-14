@@ -41,6 +41,10 @@
   matchande kalenderevent (samma käll-/filtermekanism som aktivitetssensorn).
   `binary_sensor` är "på" den dag datumet/eventet inträffar. Går att skapa
   och redigera både via sidopanelen och Inställningar → Enheter & tjänster.
+  Stödjer även flerdagarsspann (t.ex. en resa): valfritt slutdatum vid fast
+  datum, eller automatiskt via kalenderns egna start/slut vid kalenderlänkad
+  källa - `binary_sensor` är då "på" hela perioden och sensorn får attribut
+  `end_date`/`day_of_span`/`span_length`.
 - [ ] Konfigurerbart pollningsintervall (idag hårdkodat till 5 min) via
   options flow eller panelen
 - [x] Diagnostics-stöd (`diagnostics.py`) för att exportera felsökningsdata

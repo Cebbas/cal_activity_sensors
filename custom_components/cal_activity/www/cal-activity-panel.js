@@ -638,9 +638,19 @@ class CalActivityPanel extends HTMLElement {
     dateRow.className = "cc-row";
     const dateInput = document.createElement("input");
     dateInput.type = "date";
+    dateInput.title = "Startdatum";
     dateInput.value = entry.date || "";
     dateRow.appendChild(dateInput);
+    const dateEndInput = document.createElement("input");
+    dateEndInput.type = "date";
+    dateEndInput.title = "Slutdatum (valfritt)";
+    dateEndInput.value = entry.date_end || "";
+    dateRow.appendChild(dateEndInput);
     manualBlock.appendChild(dateRow);
+    const dateEndHint = document.createElement("span");
+    dateEndHint.className = "cc-picture-status";
+    dateEndHint.textContent = "Slutdatum är valfritt - fyll bara i det för flerdagshändelser som en resa.";
+    manualBlock.appendChild(dateEndHint);
     const recurringLabel = document.createElement("label");
     const recurringCb = document.createElement("input");
     recurringCb.type = "checkbox";
@@ -692,6 +702,7 @@ class CalActivityPanel extends HTMLElement {
         picture: picturePicker.getValue(),
         date_source: dateSourceSelect.value,
         date: dateInput.value || "",
+        date_end: dateEndInput.value || "",
         recurring: recurringCb.checked,
         sources: sourcePicker.getSelected(),
         ...filterControls.getValues(),
@@ -775,7 +786,7 @@ class CalActivityPanel extends HTMLElement {
     kindNote.className = "subtitle";
     kindNote.style.margin = "0 0 12px 0";
     kindNote.textContent = isCountdown
-      ? "Nedräkning / livshändelse – visar antal dagar kvar till ett fast datum eller kalenderevent."
+      ? "Nedräkning / livshändelse – visar antal dagar kvar till ett fast datum eller kalenderevent. Ange ett slutdatum (eller ett kalenderevent som redan är flera dagar långt) för att sensorn ska vara \"på\" hela perioden, t.ex. en resa."
       : "Aktivitetssensor – visar om ett filtrerat kalenderevent pågår just nu / idag.";
     card.appendChild(kindNote);
 
@@ -887,6 +898,10 @@ class CalActivityPanel extends HTMLElement {
       if (kind === "countdown") {
         if (values.date_source === "manual" && !values.date) {
           errorBox.textContent = "Ange ett datum";
+          return;
+        }
+        if (values.date_source === "manual" && values.date_end && values.date_end < values.date) {
+          errorBox.textContent = "Slutdatumet kan inte vara före startdatumet";
           return;
         }
         if (values.date_source === "calendar" && !values.sources.length) {

@@ -138,6 +138,14 @@ class CountdownSensor(CoordinatorEntity, SensorEntity):
             attrs["years"] = data["years"]
         if data.get("passed"):
             attrs["passed"] = True
+        if data.get("is_current"):
+            attrs["in_progress"] = True
+        span_length = data.get("span_length")
+        if span_length and span_length > 1:
+            attrs["end_date"] = data["end_date"].isoformat()
+            attrs["span_length"] = span_length
+            if data.get("day_of_span") is not None:
+                attrs["day_of_span"] = data["day_of_span"]
         failed = data.get("failed") or []
         if failed:
             attrs["failed_sources"] = failed

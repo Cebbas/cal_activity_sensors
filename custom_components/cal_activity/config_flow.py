@@ -11,6 +11,7 @@ from .const import (
     CONF_CREATE_BINARY,
     CONF_CREATE_SENSOR,
     CONF_DATE,
+    CONF_DATE_END,
     CONF_DATE_SOURCE,
     CONF_FILTER,
     CONF_ICON,
@@ -119,6 +120,9 @@ def _countdown_sensor_schema(defaults: dict | None = None) -> vol.Schema:
             # source is "calendar" instead - a DateSelector would reject an
             # empty value even though the field isn't used in that mode.
             vol.Optional(CONF_DATE, default=defaults.get(CONF_DATE) or ""): str,
+            # Optional - only set for a multi-day span (e.g. a trip). Empty
+            # means a single-day date, same as leaving it out entirely.
+            vol.Optional(CONF_DATE_END, default=defaults.get(CONF_DATE_END) or ""): str,
             vol.Optional(CONF_RECURRING, default=defaults.get(CONF_RECURRING, True)): bool,
             vol.Optional(
                 CONF_SOURCES, default=defaults.get(CONF_SOURCES, [])
@@ -139,6 +143,7 @@ def _countdown_data_from_input(user_input: dict) -> dict:
         CONF_PICTURE: user_input.get(CONF_PICTURE),
         CONF_DATE_SOURCE: user_input.get(CONF_DATE_SOURCE, DATE_SOURCE_MANUAL),
         CONF_DATE: user_input.get(CONF_DATE) or None,
+        CONF_DATE_END: user_input.get(CONF_DATE_END) or None,
         CONF_RECURRING: user_input.get(CONF_RECURRING, True),
         CONF_SOURCES: user_input.get(CONF_SOURCES, []),
         CONF_FILTER: _build_filter_from_flat_input(user_input),
@@ -152,6 +157,12 @@ def _countdown_errors(user_input: dict) -> dict[str, str]:
     date_source = user_input.get(CONF_DATE_SOURCE, DATE_SOURCE_MANUAL)
     if date_source == DATE_SOURCE_MANUAL and not user_input.get(CONF_DATE):
         errors["date"] = "no_date"
+    elif (
+        date_source == DATE_SOURCE_MANUAL
+        and user_input.get(CONF_DATE_END)
+        and user_input[CONF_DATE_END] < user_input[CONF_DATE]
+    ):
+        errors["date_end"] = "end_before_start"
     elif date_source == DATE_SOURCE_CALENDAR and not user_input.get(CONF_SOURCES):
         errors["sources"] = "no_sources"
     elif not (user_input.get("create_binary_sensor") or user_input.get("create_sensor")):

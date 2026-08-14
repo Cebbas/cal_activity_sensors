@@ -100,7 +100,8 @@ class ActivityBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
 
 class CountdownBinarySensor(CoordinatorEntity, BinarySensorEntity):
-    """On when the configured date (or matched calendar event) is today."""
+    """On for the whole span - the single configured day, or every day of a
+    multi-day span (e.g. a trip) - not just its first day."""
 
     _attr_has_entity_name = True
 
@@ -120,8 +121,7 @@ class CountdownBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        days_remaining = (self.coordinator.data or {}).get("days_remaining")
-        return days_remaining == 0
+        return bool((self.coordinator.data or {}).get("is_current"))
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -134,6 +134,12 @@ class CountdownBinarySensor(CoordinatorEntity, BinarySensorEntity):
             attrs["label"] = data["label"]
         if data.get("years") is not None:
             attrs["years"] = data["years"]
+        span_length = data.get("span_length")
+        if span_length and span_length > 1:
+            attrs["end_date"] = data["end_date"].isoformat()
+            attrs["span_length"] = span_length
+            if data.get("day_of_span") is not None:
+                attrs["day_of_span"] = data["day_of_span"]
         failed = data.get("failed") or []
         if failed:
             attrs["failed_sources"] = failed
