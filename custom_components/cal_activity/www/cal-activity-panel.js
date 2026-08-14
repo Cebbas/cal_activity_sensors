@@ -101,7 +101,7 @@ class CalActivityPanel extends HTMLElement {
         .cc-log-time { color: var(--secondary-text-color); flex-shrink: 0; white-space: nowrap; }
       </style>
       <h1><ha-icon icon="mdi:motion-sensor"></ha-icon>Cal Activity Sensors</h1>
-      <p class="subtitle">Skapar en binary_sensor (på/av) och/eller sensor (visar aktuellt/nästa event) för ett filtrerat urval av kalenderaktiviteter - eller en nedräkning (dagar kvar) till ett fast datum eller kalenderevent, t.ex. födelsedagar och jubileum.</p>
+      <p class="subtitle">Skapar en sensor (aktuellt/nästa event, med ett "active"-attribut för på/av) för ett filtrerat urval av kalenderaktiviteter - eller en nedräkning (dagar kvar) till ett fast datum eller kalenderevent, t.ex. födelsedagar och jubileum.</p>
       <div id="root">Laddar…</div>
     `;
     await this._reload();
@@ -512,26 +512,6 @@ class CalActivityPanel extends HTMLElement {
     return select;
   }
 
-  _buildSensorTypeControls(createBinary, createSensor, labels) {
-    const wrap = document.createElement("div");
-    wrap.className = "cc-row";
-    const binaryLabel = document.createElement("label");
-    const binaryCb = document.createElement("input");
-    binaryCb.type = "checkbox";
-    binaryCb.checked = createBinary;
-    binaryLabel.appendChild(binaryCb);
-    binaryLabel.append(" " + labels.binary);
-    const sensorLabel = document.createElement("label");
-    const sensorCb = document.createElement("input");
-    sensorCb.type = "checkbox";
-    sensorCb.checked = createSensor;
-    sensorLabel.appendChild(sensorCb);
-    sensorLabel.append(" " + labels.sensor);
-    wrap.appendChild(binaryLabel);
-    wrap.appendChild(sensorLabel);
-    return { element: wrap, getBinary: () => binaryCb.checked, getSensor: () => sensorCb.checked };
-  }
-
   // Everything below the name field for an "activity" kind sensor - shared
   // between the create card and the edit card so the two don't drift apart.
   _buildActivityFieldsSection(entry) {
@@ -568,24 +548,13 @@ class CalActivityPanel extends HTMLElement {
 
     const triggerLabel = document.createElement("div");
     triggerLabel.className = "cc-section-title";
-    triggerLabel.textContent = 'binary_sensor ska vara "på" när...';
+    triggerLabel.textContent = 'Attributet "active" ska vara på när...';
     el.appendChild(triggerLabel);
     const triggerRow = document.createElement("div");
     triggerRow.className = "cc-row";
     const triggerSelect = this._buildTriggerModeSelect(entry.trigger_mode);
     triggerRow.appendChild(triggerSelect);
     el.appendChild(triggerRow);
-
-    const sensorTypeLabel = document.createElement("div");
-    sensorTypeLabel.className = "cc-section-title";
-    sensorTypeLabel.textContent = "Sensor-typer att skapa";
-    el.appendChild(sensorTypeLabel);
-    const sensorTypes = this._buildSensorTypeControls(
-      entry.create_binary_sensor !== false,
-      entry.create_sensor !== false,
-      { binary: "binary_sensor (på/av)", sensor: "sensor (aktuellt/nästa event)" }
-    );
-    el.appendChild(sensorTypes.element);
 
     return {
       element: el,
@@ -595,8 +564,6 @@ class CalActivityPanel extends HTMLElement {
         sources: sourcePicker.getSelected(),
         ...filterControls.getValues(),
         trigger_mode: triggerSelect.value,
-        create_binary_sensor: sensorTypes.getBinary(),
-        create_sensor: sensorTypes.getSensor(),
       }),
     };
   }
@@ -684,17 +651,6 @@ class CalActivityPanel extends HTMLElement {
     dateSourceSelect.onchange = syncVisibility;
     syncVisibility();
 
-    const sensorTypeLabel = document.createElement("div");
-    sensorTypeLabel.className = "cc-section-title";
-    sensorTypeLabel.textContent = "Sensor-typer att skapa";
-    el.appendChild(sensorTypeLabel);
-    const sensorTypes = this._buildSensorTypeControls(
-      entry.create_binary_sensor !== false,
-      entry.create_sensor !== false,
-      { binary: "binary_sensor (på den dagen)", sensor: "sensor (dagar kvar)" }
-    );
-    el.appendChild(sensorTypes.element);
-
     return {
       element: el,
       getValues: () => ({
@@ -706,8 +662,6 @@ class CalActivityPanel extends HTMLElement {
         recurring: recurringCb.checked,
         sources: sourcePicker.getSelected(),
         ...filterControls.getValues(),
-        create_binary_sensor: sensorTypes.getBinary(),
-        create_sensor: sensorTypes.getSensor(),
       }),
     };
   }
@@ -908,10 +862,6 @@ class CalActivityPanel extends HTMLElement {
           errorBox.textContent = "Välj minst en källkalender";
           return;
         }
-      }
-      if (!values.create_binary_sensor && !values.create_sensor) {
-        errorBox.textContent = "Välj minst en sensor-typ";
-        return;
       }
       try {
         const result = await this._hass.callWS({

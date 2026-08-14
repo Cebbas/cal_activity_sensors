@@ -8,8 +8,6 @@ from homeassistant.core import HomeAssistant
 
 from .activity_log import async_clear, async_get_entries, async_log
 from .const import (
-    CONF_CREATE_BINARY,
-    CONF_CREATE_SENSOR,
     CONF_DATE,
     CONF_DATE_END,
     CONF_DATE_SOURCE,
@@ -40,8 +38,6 @@ def _entry_to_dict(entry) -> dict:
         "icon": entry.data.get(CONF_ICON),
         "picture": entry.data.get(CONF_PICTURE),
         "filter": entry.data.get(CONF_FILTER),
-        "create_binary_sensor": entry.data.get(CONF_CREATE_BINARY, True),
-        "create_sensor": entry.data.get(CONF_CREATE_SENSOR, True),
     }
     if kind == KIND_COUNTDOWN:
         result["date_source"] = entry.data.get(CONF_DATE_SOURCE, DATE_SOURCE_MANUAL)
@@ -94,9 +90,6 @@ def _validate_kind_fields(connection, msg_id, msg) -> bool:
     elif not msg["sources"]:
         connection.send_error(msg_id, "no_sources", "Välj minst en källkalender")
         return False
-    if not (msg["create_binary_sensor"] or msg["create_sensor"]):
-        connection.send_error(msg_id, "no_sensor_type", "Välj minst en sensor-typ")
-        return False
     return True
 
 
@@ -114,8 +107,6 @@ def _validate_kind_fields(connection, msg_id, msg) -> bool:
         vol.Optional("use_regex", default=False): bool,
         vol.Optional("case_sensitive", default=False): bool,
         vol.Optional("trigger_mode", default=TRIGGER_MODE_ACTIVE): str,
-        vol.Optional("create_binary_sensor", default=True): bool,
-        vol.Optional("create_sensor", default=True): bool,
         vol.Optional("kind", default=KIND_ACTIVITY): str,
         vol.Optional("date_source", default=DATE_SOURCE_MANUAL): str,
         vol.Optional("date"): vol.Any(str, None),
@@ -153,8 +144,6 @@ async def ws_create_entry(hass: HomeAssistant, connection, msg):
         vol.Optional("use_regex", default=False): bool,
         vol.Optional("case_sensitive", default=False): bool,
         vol.Optional("trigger_mode", default=TRIGGER_MODE_ACTIVE): str,
-        vol.Optional("create_binary_sensor", default=True): bool,
-        vol.Optional("create_sensor", default=True): bool,
         vol.Optional("kind", default=KIND_ACTIVITY): str,
         vol.Optional("date_source", default=DATE_SOURCE_MANUAL): str,
         vol.Optional("date"): vol.Any(str, None),
@@ -215,8 +204,6 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
     new_data[CONF_ICON] = msg.get("icon")
     new_data[CONF_PICTURE] = msg.get("picture")
     new_data[CONF_FILTER] = rule
-    new_data[CONF_CREATE_BINARY] = msg["create_binary_sensor"]
-    new_data[CONF_CREATE_SENSOR] = msg["create_sensor"]
     if kind == KIND_COUNTDOWN:
         new_data[CONF_DATE_SOURCE] = msg.get("date_source", DATE_SOURCE_MANUAL)
         new_data[CONF_DATE] = msg.get("date") or None

@@ -1,4 +1,9 @@
-"""Sensor platform for Cal Activity Sensors."""
+"""Sensor platform for Cal Activity Sensors.
+
+Each config entry creates exactly one entity here - no separate binary_sensor.
+On/off state that used to live on a paired binary_sensor is now just the
+`active` attribute on this sensor instead.
+"""
 from __future__ import annotations
 
 import logging
@@ -18,14 +23,15 @@ from .activity import (
     event_is_upcoming,
 )
 from .const import (
-    CONF_CREATE_SENSOR,
     CONF_ICON,
     CONF_KIND,
     CONF_NAME,
     CONF_PICTURE,
+    CONF_TRIGGER_MODE,
     DEFAULT_ACTIVITY_ICON,
     DEFAULT_COUNTDOWN_ICON,
     KIND_COUNTDOWN,
+    TRIGGER_MODE_TODAY,
 )
 from .life_event import LifeEventCoordinator, async_get_or_create_life_event_coordinator
 
@@ -35,9 +41,6 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    if not entry.data.get(CONF_CREATE_SENSOR, True):
-        return
-
     if entry.data.get(CONF_KIND) == KIND_COUNTDOWN:
         coordinator = await async_get_or_create_life_event_coordinator(hass, entry)
         async_add_entities([CountdownSensor(coordinator, entry)])
@@ -48,7 +51,11 @@ async def async_setup_entry(
 
 
 class ActivitySensor(CoordinatorEntity, SensorEntity):
-    """State = title of the currently active (or next upcoming) matching event."""
+    """State = title of the currently active (or next upcoming) matching event.
+
+    `active` attribute mirrors what used to be a separate binary_sensor: on
+    per the configured trigger_mode ("pågår just nu" or "inträffar idag").
+    """
 
     _attr_has_entity_name = True
 
@@ -81,12 +88,24 @@ class ActivitySensor(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self) -> dict:
         now = dt_util.now()
         events = (self.coordinator.data or {}).get("events", [])
+        active = [e for e in events if event_is_active(e, now)]
         upcoming = sorted([e for e in events if event_is_upcoming(e, now)], key=lambda e: str(e.start))
         today_count = sum(1 for e in events if event_is_today(e, now))
 
-        attrs: dict = {"matches_today": today_count}
+        if self._entry.data.get(CONF_TRIGGER_MODE) == TRIGGER_MODE_TODAY:
+            is_active = any(event_is_today(e, now) for e in events)
+        else:
+            is_active = bool(active)
+
+        attrs: dict = {"active": is_active, "matches_today": today_count}
+        if active:
+            attrs["current_event"] = active[0].summary
+            if is_active and self._entry.data.get(CONF_TRIGGER_MODE) != TRIGGER_MODE_TODAY:
+                end = active[0].end
+                attrs["active_until"] = end.isoformat() if hasattr(end, "isoformat") else str(end)
         if upcoming:
             next_event = upcoming[0]
+            attrs["next_event"] = next_event.summary
             attrs["next_start"] = (
                 next_event.start.isoformat() if hasattr(next_event.start, "isoformat") else str(next_event.start)
             )
@@ -102,7 +121,12 @@ class ActivitySensor(CoordinatorEntity, SensorEntity):
 
 
 class CountdownSensor(CoordinatorEntity, SensorEntity):
-    """State = whole days remaining until the configured date or matched calendar event."""
+    """State = whole days remaining until the configured date or matched calendar event.
+
+    `active` attribute mirrors what used to be a separate binary_sensor: on
+    for every day of the span (the single configured day, or every day of a
+    multi-day span like a trip - not just its first day).
+    """
 
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = "d"
@@ -128,18 +152,22 @@ class CountdownSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         data = self.coordinator.data or {}
-        attrs: dict = {}
+        is_active = bool(data.get("is_current"))
+        passed = bool(data.get("passed"))
+        phase = "in_progress" if is_active else ("passed" if passed else "upcoming")
+
+        attrs: dict = {"active": is_active, "phase": phase}
         next_date = data.get("next_date")
         if next_date:
             attrs["next_date"] = next_date.isoformat()
+            today = dt_util.now().date()
+            attrs["days_until_start"] = (next_date - today).days
         if data.get("label"):
             attrs["label"] = data["label"]
         if data.get("years") is not None:
             attrs["years"] = data["years"]
-        if data.get("passed"):
+        if passed:
             attrs["passed"] = True
-        if data.get("is_current"):
-            attrs["in_progress"] = True
         span_length = data.get("span_length")
         if span_length and span_length > 1:
             attrs["end_date"] = data["end_date"].isoformat()

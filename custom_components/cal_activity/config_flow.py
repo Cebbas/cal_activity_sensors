@@ -8,8 +8,6 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
-    CONF_CREATE_BINARY,
-    CONF_CREATE_SENSOR,
     CONF_DATE,
     CONF_DATE_END,
     CONF_DATE_SOURCE,
@@ -54,15 +52,6 @@ def _icon_and_picture_fields(defaults: dict) -> dict:
     }
 
 
-def _sensor_type_fields(defaults: dict) -> dict:
-    return {
-        vol.Optional(
-            "create_binary_sensor", default=defaults.get(CONF_CREATE_BINARY, True)
-        ): bool,
-        vol.Optional("create_sensor", default=defaults.get(CONF_CREATE_SENSOR, True)): bool,
-    }
-
-
 def _filter_fields(rule: dict) -> dict:
     return {
         vol.Optional("field", default=rule.get("field", "any")): vol.In(FILTER_FIELDS),
@@ -95,7 +84,6 @@ def _activity_sensor_schema(defaults: dict | None = None) -> vol.Schema:
                     translation_key=CONF_TRIGGER_MODE,
                 )
             ),
-            **_sensor_type_fields(defaults),
         }
     )
 
@@ -130,7 +118,6 @@ def _countdown_sensor_schema(defaults: dict | None = None) -> vol.Schema:
                 selector.EntitySelectorConfig(domain="calendar", multiple=True)
             ),
             **_filter_fields(rule),
-            **_sensor_type_fields(defaults),
         }
     )
 
@@ -147,8 +134,6 @@ def _countdown_data_from_input(user_input: dict) -> dict:
         CONF_RECURRING: user_input.get(CONF_RECURRING, True),
         CONF_SOURCES: user_input.get(CONF_SOURCES, []),
         CONF_FILTER: _build_filter_from_flat_input(user_input),
-        CONF_CREATE_BINARY: user_input["create_binary_sensor"],
-        CONF_CREATE_SENSOR: user_input["create_sensor"],
     }
 
 
@@ -165,8 +150,6 @@ def _countdown_errors(user_input: dict) -> dict[str, str]:
         errors["date_end"] = "end_before_start"
     elif date_source == DATE_SOURCE_CALENDAR and not user_input.get(CONF_SOURCES):
         errors["sources"] = "no_sources"
-    elif not (user_input.get("create_binary_sensor") or user_input.get("create_sensor")):
-        errors["create_binary_sensor"] = "no_sensor_type"
     return errors
 
 
@@ -184,8 +167,6 @@ class CalActivityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if not user_input[CONF_SOURCES]:
                 errors["sources"] = "no_sources"
-            elif not (user_input.get("create_binary_sensor") or user_input.get("create_sensor")):
-                errors["create_binary_sensor"] = "no_sensor_type"
             else:
                 data = {
                     CONF_KIND: KIND_ACTIVITY,
@@ -195,8 +176,6 @@ class CalActivityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_PICTURE: user_input.get(CONF_PICTURE),
                     CONF_FILTER: _build_filter_from_flat_input(user_input),
                     CONF_TRIGGER_MODE: user_input.get(CONF_TRIGGER_MODE, TRIGGER_MODE_ACTIVE),
-                    CONF_CREATE_BINARY: user_input["create_binary_sensor"],
-                    CONF_CREATE_SENSOR: user_input["create_sensor"],
                 }
                 return self.async_create_entry(title=user_input[CONF_NAME], data=data)
 
@@ -250,8 +229,6 @@ class CalActivityOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             if not user_input[CONF_SOURCES]:
                 errors["sources"] = "no_sources"
-            elif not (user_input.get("create_binary_sensor") or user_input.get("create_sensor")):
-                errors["create_binary_sensor"] = "no_sensor_type"
             else:
                 new_data = dict(current)
                 new_data[CONF_KIND] = KIND_ACTIVITY
@@ -261,8 +238,6 @@ class CalActivityOptionsFlow(config_entries.OptionsFlow):
                 new_data[CONF_PICTURE] = user_input.get(CONF_PICTURE)
                 new_data[CONF_FILTER] = _build_filter_from_flat_input(user_input)
                 new_data[CONF_TRIGGER_MODE] = user_input.get(CONF_TRIGGER_MODE, TRIGGER_MODE_ACTIVE)
-                new_data[CONF_CREATE_BINARY] = user_input["create_binary_sensor"]
-                new_data[CONF_CREATE_SENSOR] = user_input["create_sensor"]
                 self.hass.config_entries.async_update_entry(
                     self.config_entry, data=new_data, title=user_input[CONF_NAME]
                 )

@@ -1,8 +1,10 @@
 # Cal Activity Sensors – Home Assistant custom integration
 
-Bygger fristående `binary_sensor`/`sensor`-par från ett filtrerat urval av
-kalenderaktivitet – t.ex. en `binary_sensor.zoo_besok` som är `on` när ett
-Zoo-event pågår, perfekt att trigga automationer på.
+Bygger fristående `sensor`-entiteter från ett filtrerat urval av
+kalenderaktivitet – t.ex. en `sensor.zoo_besok` med attributet `active: true`
+när ett Zoo-event pågår, perfekt att trigga automationer på. Kan även skapa
+nedräknings-/livshändelsesensorer (dagar kvar till ett fast datum eller
+kalenderevent, t.ex. födelsedagar eller en resa).
 
 Detta var tidigare en del av [Cal Combiner](https://github.com/Cebbas/cal_combiner)
 men är utbrutet till en egen, fristående integration: den pratar bara med
@@ -22,20 +24,27 @@ installerat för att fungera.
    *Integration*
 3. Sök upp "Cal Activity Sensors" i HACS och installera, starta om HA.
 
-## 2. Skapa en aktivitetssensor
+## 2. Skapa en sensor
 
 Enklast via sidopanelen: efter installation dyker **Cal Activity** upp som en
-egen flik i sidomenyn (kräver adminkonto). Där kan du:
+egen flik i sidomenyn (kräver adminkonto). Där väljer du först typ:
 
-- Välja en eller flera källkalendrar (`calendar.*`-entiteter, t.ex. din
+**Aktivitet** (kalenderevent pågår/inträffar):
+- Välj en eller flera källkalendrar (`calendar.*`-entiteter, t.ex. din
   Google-kalender eller en sammanslagen kalender från Cal Combiner)
-- Sätta ett filter: fält att matcha mot (titel/beskrivning/plats/alla),
+- Sätt ett filter: fält att matcha mot (titel/beskrivning/plats/alla),
   inkludera/uteslut-ord, regex-läge, skiftlägeskänslighet
-- Välja om `binary_sensor`:n ska vara "på" när ett event pågår just nu, eller
-  när ett matchande event inträffar någon gång samma dag
-- Välja om du vill ha `binary_sensor`, `sensor`, eller båda
-- Sätta egen ikon och bild
-- Se en logg över senaste ändringarna direkt på kortet
+- Välj om `active`-attributet ska vara sant när ett event pågår just nu,
+  eller när ett matchande event inträffar någon gång samma dag
+
+**Nedräkning / livshändelse** (dagar kvar):
+- Ett fast datum (återkommande varje år som förval - räknar ålder/antal år,
+  t.ex. födelsedagar, namnsdagar, jubileum) eller ett matchande kalenderevent
+- Valfritt slutdatum (eller kalenderns eget slutdatum) för flerdagshändelser
+  som en resa - `active` är då sant hela perioden, inte bara första dagen
+
+Båda typerna låter dig sätta egen ikon och bild, och visar en logg över
+senaste ändringarna direkt på kortet.
 
 Går även via Inställningar → Enheter & tjänster → Lägg till integration →
 **Cal Activity Sensors**, om du föredrar den vanliga inställningsdialogen.
@@ -44,17 +53,21 @@ Inställningar → Enheter & tjänster.
 
 ## 3. Vad du får
 
-Varje aktivitetssensor kan skapa:
+Varje konfiguration skapar exakt en `sensor`-entitet - ingen separat
+`binary_sensor`, på/av-informationen är `active`-attributet:
 
-- **`binary_sensor`**: `on` beroende på vilket läge du valt – antingen "ett
-  event pågår just nu" eller "ett event inträffar någon gång idag" – med
-  attribut `current_event`, `next_event`, `next_start`, `failed_sources`
-- **`sensor`**: state = titeln på pågående (eller näst kommande) matchande
-  event, attribut `matches_today`, `next_start`, `next_end`, `location`,
+- **Aktivitet**: state = titeln på pågående (eller näst kommande) matchande
+  event, attribut `active`, `active_until` (när det pågående eventet slutar),
+  `current_event`, `next_event`, `next_start`, `next_end`, `matches_today`,
+  `location`, `failed_sources`
+- **Nedräkning / livshändelse**: state = antal hela dagar kvar (till start,
+  eller kvar av perioden om den pågår), attribut `active`, `phase`
+  (`upcoming`/`in_progress`/`passed`), `days_until_start`, `next_date`,
+  `label`, `years`, `end_date`/`day_of_span`/`span_length` (flerdagshändelser),
   `failed_sources`
 
-Exempel: en sensor med källa = din Google-kalender och filter
-"inkludera: Zoo" ger en `binary_sensor.zoo_besok` som är `on` när ett
+Exempel: en aktivitetssensor med källa = din Google-kalender och filter
+"inkludera: Zoo" ger en `sensor.zoo_besok` med `active: true` när ett
 Zoo-event pågår (eller hela dagen zoo-eventet finns, om du valt det läget) –
 trigga automationer på det (t.ex. stäng av larmet, sätt på "borta"-läge,
 eller skicka en påminnelse).
@@ -75,14 +88,15 @@ Se `IDEAS.md` för en avbockningsbar lista över vad som är gjort och vad som
 ```
 custom_components/
   cal_activity/
-    __init__.py       # setup, registrerar panel + ws-api
-    activity.py          # coordinator + delad hämtnings-/filterlogik (fristående, ingen extern kalender-integration krävs)
-    activity_log.py         # rullande "senaste händelser"-logg per sensor
-    binary_sensor.py           # på/av (nu eller idag)
-    sensor.py                     # aktuellt/nästa event
-    config_flow.py                  # UI för att lägga till/ändra en sensor
-    panel.py                           # registrerar sidopanelen + statiska filer
-    ws_api.py                             # websocket-kommandon som panelen använder
+    __init__.py       # setup, registrerar panel + ws-api, städar ev. kvarblivna binary_sensor-poster
+    activity.py          # coordinator + delad hämtnings-/filterlogik för aktivitetssensorer
+    life_event.py            # coordinator + datumlogik för nedräknings-/livshändelsesensorer
+    activity_log.py             # rullande "senaste händelser"-logg per sensor
+    sensor.py                       # den enda entitetsplattformen - både aktivitet och nedräkning
+    diagnostics.py                     # exporterbar felsökningsdata
+    config_flow.py                        # UI för att lägga till/ändra en sensor
+    panel.py                                 # registrerar sidopanelen + statiska filer
+    ws_api.py                                   # websocket-kommandon som panelen använder
     const.py
     manifest.json
     hacs.json

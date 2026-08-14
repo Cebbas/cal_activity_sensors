@@ -7,8 +7,6 @@ CONF_SOURCES = "sources"
 CONF_ICON = "icon"
 CONF_PICTURE = "picture"
 CONF_FILTER = "filter"
-CONF_CREATE_BINARY = "create_binary_sensor"
-CONF_CREATE_SENSOR = "create_sensor"
 CONF_TRIGGER_MODE = "trigger_mode"
 TRIGGER_MODE_ACTIVE = "active_now"
 TRIGGER_MODE_TODAY = "today"
@@ -34,4 +32,4 @@ CONF_RECURRING = "recurring"
 
 DEFAULT_COUNTDOWN_ICON = "mdi:calendar-star"
 
-PLATFORMS = ["binary_sensor", "sensor"]
+PLATFORMS = ["sensor"]
