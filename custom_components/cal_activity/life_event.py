@@ -16,8 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .activity import event_is_active, event_is_upcoming, fetch_matching_events
-from .activity_log import async_log
+from .activity import FailureStreakTracker, event_is_active, event_is_upcoming, fetch_matching_events
 from .const import (
     CONF_DATE,
     CONF_DATE_END,
@@ -96,7 +95,7 @@ class LifeEventCoordinator(DataUpdateCoordinator):
             hass, _LOGGER, name=f"cal_activity_life_{entry.entry_id}", update_interval=SCAN_INTERVAL
         )
         self.entry = entry
-        self._last_failed: set[str] = set()
+        self._failure_tracker = FailureStreakTracker()
 
     async def _async_update_data(self):
         entry = self.entry
@@ -121,12 +120,7 @@ class LifeEventCoordinator(DataUpdateCoordinator):
             years = None
             passed = False
 
-            failed_set = set(failed)
-            if failed_set and failed_set != self._last_failed:
-                await async_log(self.hass, entry.entry_id, "Källa svarar inte: " + ", ".join(failed))
-            elif not failed_set and self._last_failed:
-                await async_log(self.hass, entry.entry_id, "Alla källor svarar igen")
-            self._last_failed = failed_set
+            await self._failure_tracker.async_update(self.hass, entry, failed)
         else:
             failed = []
             label = entry.data.get(CONF_NAME)

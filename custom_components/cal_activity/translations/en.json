@@ -86,5 +86,11 @@
         "calendar": "Kalenderevent"
       }
     }
+  },
+  "issues": {
+    "failed_sources": {
+      "title": "A source calendar isn't responding",
+      "description": "The following source calendars for \"{name}\" have errored on several polls in a row and are temporarily excluded:\n\n{sources}\n\nThis resolves itself automatically (and this issue clears) as soon as the source responds again. Check that the source calendar's integration is still logged in/configured correctly, e.g. an expired Google token."
+    }
   }
 }

@@ -27,12 +27,26 @@
 - [x] Egen bild (uppladdad via HA:s inbyggda bilduppladdning) per sensor
 
 ## Robusthet
-- [ ] Repair-issue (istället för bara `failed_sources`-attributet) så en
-  källa som slutat svara syns i Inställningar → Repairs
-- [ ] Retry/backoff om en källa svarar ostabilt istället för att direkt
-  räknas som "failed" för hela pollningsintervallet
-- [ ] Automatiserade tester (unit-tester för filterlogiken och
-  coordinator-uppdatering) – idag finns ingen testsvit
+- [x] Repair-issue (istället för bara `failed_sources`-attributet) så en
+  källa som slutat svara syns i Inställningar → Repairs – delad
+  `FailureStreakTracker` (`activity.py`) används av både
+  `ActivitySensorCoordinator` och `LifeEventCoordinator` (kalenderkälla),
+  `homeassistant.helpers.issue_registry`, döljs automatiskt igen när alla
+  källor svarar.
+- [x] Retry/backoff om en källa svarar ostabilt istället för att direkt
+  räknas som "failed" för hela pollningsintervallet – samma
+  `FailureStreakTracker` väntar med att höja issuen tills `FAILURE_THRESHOLD`
+  (2) pollningar i rad misslyckats. `failed_sources`-attributet är
+  opåverkat (visar fortfarande rådata per pollning).
+- [x] Automatiserade tester (unit-tester för filterlogiken och
+  coordinator-uppdatering) – pytest-svit i `tests/` (byggd på
+  `pytest-homeassistant-custom-component`), körs i CI via
+  `.github/workflows/validate.yml`. Täcker filter (`_matches_filter`),
+  `fetch_matching_events`, `event_is_active`/`event_is_upcoming`/`event_is_today`,
+  `life_event.py`s datummatte (`next_span`, `_end_inclusive`, `_safe_date`,
+  inkl. skottdag och årsskiftesspann) och båda coordinatorernas
+  uppdateringslogik (manuellt/kalenderdatum, retry/backoff), samt
+  `binary_sensor.py`s `is_on`/attribut-logik för båda sensor-typerna.
 
 ## Trevligt-att-ha (ej påbörjat)
 - [ ] Fler sensor-typer, t.ex. "minuter kvar till nästa match" eller "antal

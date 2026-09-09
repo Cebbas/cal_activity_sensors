@@ -14,14 +14,19 @@ import re
 from homeassistant.components.calendar import CalendarEvent
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .activity_log import async_log
-from .const import CONF_FILTER, CONF_SOURCES, DOMAIN
+from .const import CONF_FILTER, CONF_NAME, CONF_SOURCES, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=5)
+# How many consecutive failed polls a source needs before it's surfaced as a
+# repair issue - a single blip (a flaky proxy, a momentary timeout) shouldn't
+# raise a user-visible issue on every poll; it should just quietly retry.
+FAILURE_THRESHOLD = 2
 
 
 def _extract_field_text(item: dict, field: str) -> str:
@@ -126,6 +131,60 @@ def event_is_today(event, now) -> bool:
     return str(event.start)[:10] == str(now.date())
 
 
+def _failed_sources_issue_id(entry_id: str) -> str:
+    return f"failed_sources_{entry_id}"
+
+
+async def async_notify_failed_sources(hass: HomeAssistant, entry: ConfigEntry, failed: list[str]) -> None:
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _failed_sources_issue_id(entry.entry_id),
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="failed_sources",
+        translation_placeholders={
+            "name": entry.data.get(CONF_NAME, "Cal Activity"),
+            "sources": "\n".join(f"- {e}" for e in failed),
+        },
+    )
+    await async_log(hass, entry.entry_id, "Källa svarar inte: " + ", ".join(failed))
+
+
+async def async_dismiss_failed_sources(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _failed_sources_issue_id(entry.entry_id))
+    await async_log(hass, entry.entry_id, "Alla källor svarar igen")
+
+
+class FailureStreakTracker:
+    """Retry/backoff for a coordinator's failed-source repair issue.
+
+    A source only escalates to a user-visible repair issue once it's failed
+    FAILURE_THRESHOLD polls in a row, not on the first blip - shared between
+    ActivitySensorCoordinator and LifeEventCoordinator (calendar date
+    source), which otherwise duplicate this bookkeeping.
+    """
+
+    def __init__(self) -> None:
+        self._streaks: dict[str, int] = {}
+        self._last_notified: set[str] = set()
+
+    async def async_update(self, hass: HomeAssistant, entry: ConfigEntry, failed: list[str]) -> None:
+        failed_set = set(failed)
+        for source in failed_set:
+            self._streaks[source] = self._streaks.get(source, 0) + 1
+        for source in list(self._streaks):
+            if source not in failed_set:
+                del self._streaks[source]
+
+        persistently_failed = {s for s, count in self._streaks.items() if count >= FAILURE_THRESHOLD}
+        if persistently_failed and persistently_failed != self._last_notified:
+            await async_notify_failed_sources(hass, entry, sorted(persistently_failed))
+        elif not persistently_failed and self._last_notified:
+            await async_dismiss_failed_sources(hass, entry)
+        self._last_notified = persistently_failed
+
+
 class ActivitySensorCoordinator(DataUpdateCoordinator):
     """Polls the configured sources and applies the shared filter rule."""
 
@@ -134,7 +193,7 @@ class ActivitySensorCoordinator(DataUpdateCoordinator):
             hass, _LOGGER, name=f"cal_activity_{entry.entry_id}", update_interval=SCAN_INTERVAL
         )
         self.entry = entry
-        self._last_failed: set[str] = set()
+        self._failure_tracker = FailureStreakTracker()
 
     async def _async_update_data(self):
         sources: list[str] = self.entry.data.get(CONF_SOURCES, [])
@@ -145,12 +204,7 @@ class ActivitySensorCoordinator(DataUpdateCoordinator):
             self.hass, sources, rule, now - timedelta(hours=1), now + timedelta(days=30)
         )
 
-        failed_set = set(failed)
-        if failed_set and failed_set != self._last_failed:
-            await async_log(self.hass, self.entry.entry_id, "Källa svarar inte: " + ", ".join(failed))
-        elif not failed_set and self._last_failed:
-            await async_log(self.hass, self.entry.entry_id, "Alla källor svarar igen")
-        self._last_failed = failed_set
+        await self._failure_tracker.async_update(self.hass, self.entry, failed)
 
         return {"events": events, "failed": failed}
 

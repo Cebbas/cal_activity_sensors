@@ -86,5 +86,11 @@
         "calendar": "Kalenderevent"
       }
     }
+  },
+  "issues": {
+    "failed_sources": {
+      "title": "En källkalender svarar inte",
+      "description": "Följande källkalendrar för \"{name}\" har svarat med fel på flera pollningar i rad och är tillfälligt uteslutna:\n\n{sources}\n\nDetta löser sig automatiskt (och det här meddelandet försvinner) så fort källan svarar igen. Kontrollera att källkalenderns integration fortfarande är korrekt inloggad/konfigurerad, t.ex. en Google-token som gått ut."
+    }
   }
 }

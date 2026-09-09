@@ -76,9 +76,27 @@ eller skicka en påminnelse).
 
 Om en källkalender inte går att nå exkluderas den tillfälligt för den
 pollningen, syns som `failed_sources` på entiteten, och loggas i sensorns
-"Senaste händelser"-lista i panelen.
+"Senaste händelser"-lista i panelen. Misslyckas den två pollningar i rad
+(~10 min) syns det även som en riktig issue under Inställningar → Repairs -
+en enstaka tillfällig blip flaggas alltså inte direkt. Issuen försvinner
+automatiskt igen så fort källan svarar normalt.
 
-## 5. Bygga vidare
+## 5. Tester
+
+Filterlogik, kalenderhämtning, datummatten för nedräkningssensorerna
+(`next_span`/`_end_inclusive`, inkl. skottdag och årsskiftesspann) och
+båda sensor-typernas `is_on`/attribut-logik täcks av en pytest-svit under
+`tests/`, byggd på `pytest-homeassistant-custom-component`. Köra lokalt:
+
+```bash
+pip install -r requirements_test.txt
+pytest tests/ -q
+```
+
+Körs även automatiskt i CI (`.github/workflows/validate.yml`) vid varje
+push/PR.
+
+## 6. Bygga vidare
 
 Se `IDEAS.md` för en avbockningsbar lista över vad som är gjort och vad som
 återstår.
@@ -106,4 +124,7 @@ custom_components/
       sv.json
     www/
       cal-activity-panel.js  # sidopanelens UI (vanilla JS)
+tests/               # pytest-svit (filter, kalenderhämtning, datummatte, sensorlogik)
+requirements_test.txt
+pytest.ini
 ```
