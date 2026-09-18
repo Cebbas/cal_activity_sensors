@@ -12,6 +12,11 @@ class CalActivityPanel extends HTMLElement {
     this._calendars = [];
     this._initialized = false;
     this._activeKey = "__new__"; // entry_id, or "__new__" for the create-new sub-tab
+    this._activeGroup = "other"; // "birthday" or "other" - which top-level tab is showing
+  }
+
+  _groupOf(entry) {
+    return entry.kind === "birthday" ? "birthday" : "other";
   }
 
   set hass(hass) {
@@ -37,6 +42,13 @@ class CalActivityPanel extends HTMLElement {
           display: flex; align-items: center; gap: 10px; }
         h1 ha-icon { --mdc-icon-size: 28px; color: var(--primary-color); }
         p.subtitle { color: var(--secondary-text-color); margin-top: 0; margin-bottom: 20px; }
+        .cc-grouptabs { display: flex; gap: 8px; margin-bottom: 12px;
+          border-bottom: 1px solid var(--divider-color, #ccc); }
+        .cc-grouptab { display: flex; align-items: center; gap: 6px; padding: 8px 4px; cursor: pointer;
+          background: transparent; border: none; border-bottom: 2px solid transparent;
+          font-size: 14px; font-weight: 500; color: var(--secondary-text-color); }
+        .cc-grouptab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+        .cc-grouptab ha-icon { --mdc-icon-size: 18px; }
         .cc-subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
         .cc-subtab { display: flex; align-items: center; gap: 6px; padding: 6px 14px; cursor: pointer;
           background: var(--secondary-background-color, #eee); border: 1px solid transparent; border-radius: 999px;
@@ -126,19 +138,28 @@ class CalActivityPanel extends HTMLElement {
     const root = this.shadowRoot.querySelector("#root");
     root.innerHTML = "";
 
-    if (this._activeKey !== "__new__" && !this._entries.find((e) => e.entry_id === this._activeKey)) {
-      this._activeKey = this._entries.length ? this._entries[0].entry_id : "__new__";
+    const groupEntries = this._entries.filter((e) => this._groupOf(e) === this._activeGroup);
+
+    if (this._activeKey !== "__new__" && !groupEntries.find((e) => e.entry_id === this._activeKey)) {
+      this._activeKey = groupEntries.length ? groupEntries[0].entry_id : "__new__";
     }
     root.appendChild(
-      this._renderSubTabs(this._entries, this._activeKey, (key) => {
+      this._renderGroupTabs(this._activeGroup, (group) => {
+        this._activeGroup = group;
+        this._activeKey = null; // recomputed below to the new group's first entry, or __new__
+        this._render();
+      })
+    );
+    root.appendChild(
+      this._renderSubTabs(groupEntries, this._activeKey, (key) => {
         this._activeKey = key;
         this._render();
       })
     );
     if (this._activeKey === "__new__") {
-      this._safeAppend(root, () => this._renderNewEntryCard(), "ny sensor");
+      this._safeAppend(root, () => this._renderNewEntryCard(this._activeGroup), "ny sensor");
     } else {
-      const entry = this._entries.find((e) => e.entry_id === this._activeKey);
+      const entry = groupEntries.find((e) => e.entry_id === this._activeKey);
       this._safeAppend(root, () => this._renderEntryCard(entry), `sensorn "${entry.name}"`);
     }
   }
@@ -156,6 +177,29 @@ class CalActivityPanel extends HTMLElement {
       box.textContent = `Kunde inte visa ${context}: ${err.message || err}\n(Se webbläsarens konsol för mer detaljer.)`;
       root.appendChild(box);
     }
+  }
+
+  // Top-level split, above the per-entry subtabs: Födelsedagar has its own
+  // focused create-form (no kind-select, just date + person), everything
+  // else (Aktivitet/Nedräkning) stays together under "Övrigt".
+  _renderGroupTabs(activeGroup, onSelect) {
+    const bar = document.createElement("div");
+    bar.className = "cc-grouptabs";
+    [
+      { value: "birthday", label: "Födelsedagar", icon: "mdi:cake-variant" },
+      { value: "other", label: "Övrigt", icon: "mdi:calendar-check" },
+    ].forEach(({ value, label, icon }) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cc-grouptab" + (value === activeGroup ? " active" : "");
+      const iconEl = document.createElement("ha-icon");
+      iconEl.setAttribute("icon", icon);
+      btn.appendChild(iconEl);
+      btn.append(label);
+      btn.onclick = () => onSelect(value);
+      bar.appendChild(btn);
+    });
+    return bar;
   }
 
   _renderSubTabs(items, activeKey, onSelect) {
@@ -484,13 +528,14 @@ class CalActivityPanel extends HTMLElement {
     return select;
   }
 
-  _buildKindSelect(value) {
+  _buildKindSelect(value, allowedKinds) {
     const select = document.createElement("select");
-    [
+    const options = [
       { value: "activity", label: "Aktivitet (event pågår just nu / idag)" },
       { value: "countdown", label: "Nedräkning / livshändelse (dagar kvar)" },
       { value: "birthday", label: "Födelsedag (dagar kvar, räknar ålder)" },
-    ].forEach(({ value: v, label }) => {
+    ].filter((o) => !allowedKinds || allowedKinds.includes(o.value));
+    options.forEach(({ value: v, label }) => {
       const opt = document.createElement("option");
       opt.value = v;
       opt.textContent = label;
@@ -629,16 +674,6 @@ class CalActivityPanel extends HTMLElement {
     recurringLabel.append(" Återkommande varje år (räknar ålder/antal år)");
     manualBlock.appendChild(recurringLabel);
 
-    const personLabel = document.createElement("div");
-    personLabel.className = "cc-section-title";
-    personLabel.textContent = "Koppla till person (endast Födelsedag, avancerat, valfritt)";
-    manualBlock.appendChild(personLabel);
-    const personInput = document.createElement("input");
-    personInput.type = "text";
-    personInput.placeholder = "person.namn";
-    personInput.value = entry.person_entity || "";
-    manualBlock.appendChild(personInput);
-
     const calendarBlock = document.createElement("div");
     const calSourcesLabel = document.createElement("div");
     calSourcesLabel.className = "cc-section-title";
@@ -673,9 +708,68 @@ class CalActivityPanel extends HTMLElement {
         date: dateInput.value || "",
         date_end: dateEndInput.value || "",
         recurring: recurringCb.checked,
-        person_entity: personInput.value.trim() || "",
         sources: sourcePicker.getSelected(),
         ...filterControls.getValues(),
+      }),
+    };
+  }
+
+  // Everything below the name field for a "birthday" kind sensor - a
+  // deliberately smaller form than countdown's (just date + the optional
+  // person link), not the countdown field-set with irrelevant options
+  // (date source, end date, recurring, calendar filter) hidden behind a
+  // disclaimer.
+  _buildBirthdayFieldsSection(entry) {
+    entry = entry || {};
+    const el = document.createElement("div");
+
+    const iconLabel = document.createElement("div");
+    iconLabel.className = "cc-section-title";
+    iconLabel.textContent = "Ikon";
+    el.appendChild(iconLabel);
+    const iconPicker = this._buildIconPicker(entry.icon || "");
+    el.appendChild(iconPicker.element);
+
+    const pictureLabel = document.createElement("div");
+    pictureLabel.className = "cc-section-title";
+    pictureLabel.textContent = "Bild (lämna tom för att använda personens egen bild, om kopplad nedan)";
+    el.appendChild(pictureLabel);
+    const picturePicker = this._buildPicturePicker(entry.picture || "");
+    el.appendChild(picturePicker.element);
+
+    const dateLabel = document.createElement("div");
+    dateLabel.className = "cc-section-title";
+    dateLabel.textContent = "Födelsedatum";
+    el.appendChild(dateLabel);
+    const dateRow = document.createElement("div");
+    dateRow.className = "cc-row";
+    const dateInput = document.createElement("input");
+    dateInput.type = "date";
+    dateInput.value = entry.date || "";
+    dateRow.appendChild(dateInput);
+    el.appendChild(dateRow);
+
+    const personLabel = document.createElement("div");
+    personLabel.className = "cc-section-title";
+    personLabel.textContent = "Koppla till person (avancerat, valfritt)";
+    el.appendChild(personLabel);
+    const personInput = document.createElement("input");
+    personInput.type = "text";
+    personInput.placeholder = "person.namn";
+    personInput.value = entry.person_entity || "";
+    el.appendChild(personInput);
+
+    return {
+      element: el,
+      getValues: () => ({
+        icon: iconPicker.getValue(),
+        picture: picturePicker.getValue(),
+        date: dateInput.value || "",
+        person_entity: personInput.value.trim() || "",
+        // The panel's create/update websocket schema always requires
+        // `sources` (shared with the Aktivitet/Nedräkning forms) even
+        // though a birthday never uses it.
+        sources: [],
       }),
     };
   }
@@ -731,7 +825,7 @@ class CalActivityPanel extends HTMLElement {
     const card = document.createElement("div");
     card.className = "cc-card";
     const isBirthday = entry.kind === "birthday";
-    const isCountdown = entry.kind === "countdown" || isBirthday;
+    const isCountdown = entry.kind === "countdown";
 
     const header = document.createElement("div");
     header.className = "cc-card-header";
@@ -756,13 +850,15 @@ class CalActivityPanel extends HTMLElement {
     kindNote.className = "subtitle";
     kindNote.style.margin = "0 0 12px 0";
     kindNote.textContent = isBirthday
-      ? "Födelsedag – \"på\" den dag personen fyller år. Räknar automatiskt åldern som attributet \"age\". Datumkälla/slutdatum/källkalendrar nedan gäller bara vanlig Nedräkning/livshändelse, inte Födelsedag."
+      ? "Födelsedag – \"på\" den dag personen fyller år. Räknar automatiskt åldern som attributet \"age\"."
       : isCountdown
       ? "Nedräkning / livshändelse – \"på\" den dag ett fast datum eller kalenderevent inträffar, med dagar kvar som attribut. Ange ett slutdatum (eller ett kalenderevent som redan är flera dagar långt) för att sensorn ska vara \"på\" hela perioden, t.ex. en resa."
       : "Aktivitetssensor – \"på\" när ett filtrerat kalenderevent pågår just nu / idag.";
     card.appendChild(kindNote);
 
-    const fieldsSection = isCountdown
+    const fieldsSection = isBirthday
+      ? this._buildBirthdayFieldsSection(entry)
+      : isCountdown
       ? this._buildCountdownFieldsSection(entry)
       : this._buildActivityFieldsSection(entry);
     card.appendChild(fieldsSection.element);
@@ -811,26 +907,33 @@ class CalActivityPanel extends HTMLElement {
     return card;
   }
 
-  _renderNewEntryCard() {
+  // `group` is "birthday" (the dedicated Födelsedagar tab - always creates
+  // a birthday, no kind-select needed) or "other" (Aktivitet/Nedräkning,
+  // matching everything else's tab - birthday is deliberately not offered
+  // here since it has its own tab).
+  _renderNewEntryCard(group) {
     const card = document.createElement("div");
     card.className = "cc-card cc-new-card";
 
     const title = document.createElement("div");
     title.className = "cc-section-title";
-    title.textContent = "Skapa ny sensor";
+    title.textContent = group === "birthday" ? "Skapa ny födelsedag" : "Skapa ny sensor";
     card.appendChild(title);
 
-    const kindRow = document.createElement("div");
-    kindRow.className = "cc-row";
-    const kindSelect = this._buildKindSelect("activity");
-    kindRow.appendChild(kindSelect);
-    card.appendChild(kindRow);
+    let kindSelect = null;
+    if (group !== "birthday") {
+      const kindRow = document.createElement("div");
+      kindRow.className = "cc-row";
+      kindSelect = this._buildKindSelect("activity", ["activity", "countdown"]);
+      kindRow.appendChild(kindSelect);
+      card.appendChild(kindRow);
+    }
 
     const nameRow = document.createElement("div");
     nameRow.className = "cc-row";
     const nameInput = document.createElement("input");
     nameInput.type = "text";
-    nameInput.placeholder = "Namn, t.ex. Zoo-besök eller Mammas födelsedag";
+    nameInput.placeholder = group === "birthday" ? "Namn, t.ex. Mammas födelsedag" : "Namn, t.ex. Zoo-besök";
     nameRow.appendChild(nameInput);
     card.appendChild(nameRow);
 
@@ -840,13 +943,17 @@ class CalActivityPanel extends HTMLElement {
     let fieldsSection = null;
     const renderFields = () => {
       fieldsContainer.innerHTML = "";
-      fieldsSection =
-        kindSelect.value === "countdown" || kindSelect.value === "birthday"
-          ? this._buildCountdownFieldsSection({})
-          : this._buildActivityFieldsSection({});
+      if (group === "birthday") {
+        fieldsSection = this._buildBirthdayFieldsSection({});
+      } else {
+        fieldsSection =
+          kindSelect.value === "countdown"
+            ? this._buildCountdownFieldsSection({})
+            : this._buildActivityFieldsSection({});
+      }
       fieldsContainer.appendChild(fieldsSection.element);
     };
-    kindSelect.onchange = renderFields;
+    if (kindSelect) kindSelect.onchange = renderFields;
     renderFields();
 
     const errorBox = document.createElement("div");
@@ -861,7 +968,7 @@ class CalActivityPanel extends HTMLElement {
         errorBox.textContent = "Ange ett namn";
         return;
       }
-      const kind = kindSelect.value;
+      const kind = group === "birthday" ? "birthday" : kindSelect.value;
       const values = fieldsSection.getValues();
       if (kind === "activity" && !values.sources.length) {
         errorBox.textContent = "Välj minst en källkalender";

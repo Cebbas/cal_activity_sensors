@@ -69,9 +69,14 @@
   websocket-API (`ws_api.py`, separat från `config_flow.py` - det är det
   panelen faktiskt pratar med) och dess formulär
   (`www/cal-activity-panel.js`) är uppdaterade i samma svep: eget typval
-  "Födelsedag" i skapa-kortet, återanvänder Nedräkning/livshändelse-fälten
-  för redigering/skapande (inkl. person-kopplingen), egen ikon i
-  list-/kortvy.
+  "Födelsedag" i skapa-kortet, egen ikon i list-/kortvy. Har sedan fått ett
+  helt eget, minimalt fältformulär (`_buildBirthdayFieldsSection` - bara
+  ikon, bild, datum, person; inga countdown-fält som datumkälla/slutdatum/
+  återkommande/källkalendrar syns alls) istället för att återanvända
+  Nedräkning-formuläret med en bortförklarande textrad. Panelen har även
+  fått en översta flik-nivå (`_renderGroupTabs`) som delar upp allt i
+  "Födelsedagar" och "Övrigt" (Aktivitet/Nedräkning), var med sin egen
+  rad av entitets-flikar och eget skapa-kort under.
 - [ ] Möjlighet att koppla en automation-mall direkt från panelen (förslag
   på trigger-YAML)
 - [x] "Life event"-liknande sensorer / nedräkningssensor: ny sensor-"kind"
