@@ -7,7 +7,7 @@ from a calendar-merging integration even if one happens to be installed too.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 import re
 
@@ -100,10 +100,14 @@ async def fetch_matching_events(
         for item in response.get(entity_id, {}).get("events", []):
             if not _matches_filter(item, rule):
                 continue
-            # parse_date first: parse_datetime "succeeds" on a pure date string too
-            # (as a naive midnight datetime), which breaks all-day events.
-            start_val = dt_util.parse_date(item["start"]) or dt_util.parse_datetime(item["start"])
-            end_val = dt_util.parse_date(item["end"]) or dt_util.parse_datetime(item["end"])
+            try:
+                # parse_date first: parse_datetime "succeeds" on a pure date string too
+                # (as a naive midnight datetime), which breaks all-day events.
+                start_val = dt_util.parse_date(item["start"]) or dt_util.parse_datetime(item["start"])
+                end_val = dt_util.parse_date(item["end"]) or dt_util.parse_datetime(item["end"])
+            except (KeyError, TypeError, ValueError) as err:
+                _LOGGER.warning("Skipping malformed event from %s: %s", entity_id, err)
+                continue
             events.append(
                 CalendarEvent(
                     start=start_val,
@@ -115,20 +119,46 @@ async def fetch_matching_events(
                 )
             )
 
-    events.sort(key=lambda e: str(e.start))
+    events.sort(key=event_sort_key)
     return events, failed
 
 
+def _as_comparable_datetime(value) -> datetime:
+    """Normalize a `CalendarEvent.start`/`.end` value (a `date` for an
+    all-day event, an aware or naive `datetime` for a timed one) to an aware
+    UTC datetime.
+
+    Comparing/sorting these as strings breaks whenever two datetimes share a
+    wall-clock prefix but differ in UTC offset (e.g. across a DST change, or
+    events sourced from calendars in different timezones) - "23:00+02:00"
+    (=21:00 UTC) would sort after "22:00+00:00" (=22:00 UTC) even though it's
+    actually earlier.
+    """
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = dt_util.as_local(value)
+        return dt_util.as_utc(value)
+    return dt_util.as_utc(dt_util.start_of_local_day(value))
+
+
+def event_sort_key(event) -> datetime:
+    return _as_comparable_datetime(event.start)
+
+
 def event_is_active(event, now) -> bool:
-    return str(event.start) <= str(now) <= str(event.end)
+    now_dt = _as_comparable_datetime(now)
+    return _as_comparable_datetime(event.start) <= now_dt <= _as_comparable_datetime(event.end)
 
 
 def event_is_upcoming(event, now) -> bool:
-    return str(event.start) > str(now)
+    return _as_comparable_datetime(event.start) > _as_comparable_datetime(now)
 
 
 def event_is_today(event, now) -> bool:
-    return str(event.start)[:10] == str(now.date())
+    start = event.start
+    start_date = dt_util.as_local(start).date() if isinstance(start, datetime) else start
+    now_date = dt_util.as_local(now).date() if isinstance(now, datetime) else now
+    return start_date == now_date
 
 
 def _failed_sources_issue_id(entry_id: str) -> str:

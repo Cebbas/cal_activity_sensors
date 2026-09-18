@@ -34,6 +34,15 @@ SCAN_INTERVAL = timedelta(hours=1)
 CALENDAR_LOOKAHEAD = timedelta(days=400)
 
 
+def _parse_iso_date(date_str: str | None) -> date | None:
+    if not date_str:
+        return None
+    try:
+        return date.fromisoformat(date_str)
+    except ValueError:
+        return None
+
+
 def _safe_date(year: int, month: int, day: int) -> date:
     """Build a date, falling back Feb 29 -> Feb 28 on non-leap years."""
     try:
@@ -125,14 +134,18 @@ class LifeEventCoordinator(DataUpdateCoordinator):
             failed = []
             label = entry.data.get(CONF_NAME)
             date_str = entry.data.get(CONF_DATE)
-            if not date_str:
+            original_start = _parse_iso_date(date_str)
+            if original_start is None:
+                if date_str:
+                    # Config flow validates this, but older entries created
+                    # before that check existed could still hold a bad value.
+                    _LOGGER.warning("Ogiltigt datum för %s: %r", entry.entry_id, date_str)
                 start = end_inclusive = None
                 years = None
                 passed = False
             else:
-                original_start = date.fromisoformat(date_str)
                 end_str = entry.data.get(CONF_DATE_END)
-                original_end = date.fromisoformat(end_str) if end_str else original_start
+                original_end = _parse_iso_date(end_str) or original_start
                 span_days = max((original_end - original_start).days + 1, 1)
 
                 if entry.data.get(CONF_RECURRING, True):
@@ -155,6 +168,9 @@ class LifeEventCoordinator(DataUpdateCoordinator):
             day_of_span = (today - start).days + 1 if is_current else None
             if today < start:
                 days_remaining = (start - today).days
+            elif today > end_inclusive:
+                # Passed, non-recurring event - clamp instead of going negative.
+                days_remaining = 0
             else:
                 days_remaining = (end_inclusive - today).days
 

@@ -1,6 +1,8 @@
 """Config flow for Cal Activity Sensors."""
 from __future__ import annotations
 
+from datetime import date
+
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -140,16 +142,31 @@ def _countdown_data_from_input(user_input: dict) -> dict:
 def _countdown_errors(user_input: dict) -> dict[str, str]:
     errors: dict[str, str] = {}
     date_source = user_input.get(CONF_DATE_SOURCE, DATE_SOURCE_MANUAL)
-    if date_source == DATE_SOURCE_MANUAL and not user_input.get(CONF_DATE):
-        errors["date"] = "no_date"
-    elif (
-        date_source == DATE_SOURCE_MANUAL
-        and user_input.get(CONF_DATE_END)
-        and user_input[CONF_DATE_END] < user_input[CONF_DATE]
-    ):
-        errors["date_end"] = "end_before_start"
+
+    if date_source == DATE_SOURCE_MANUAL:
+        date_str = user_input.get(CONF_DATE)
+        if not date_str:
+            errors["date"] = "no_date"
+            return errors
+
+        try:
+            parsed_start = date.fromisoformat(date_str)
+        except ValueError:
+            errors["date"] = "invalid_date"
+            return errors
+
+        end_str = user_input.get(CONF_DATE_END)
+        if end_str:
+            try:
+                parsed_end = date.fromisoformat(end_str)
+            except ValueError:
+                errors["date_end"] = "invalid_date"
+            else:
+                if parsed_end < parsed_start:
+                    errors["date_end"] = "end_before_start"
     elif date_source == DATE_SOURCE_CALENDAR and not user_input.get(CONF_SOURCES):
         errors["sources"] = "no_sources"
+
     return errors
 
 

@@ -47,6 +47,7 @@
     "error": {
       "no_sources": "Välj minst en källkalender",
       "no_date": "Ange ett datum",
+      "invalid_date": "Invalid date (use the format YYYY-MM-DD)",
       "end_before_start": "Slutdatumet kan inte vara före startdatumet"
     }
   },

@@ -23,6 +23,7 @@ from .activity import (
     event_is_active,
     event_is_today,
     event_is_upcoming,
+    event_sort_key,
 )
 from .const import (
     CONF_ICON,
@@ -84,7 +85,7 @@ class ActivityBinarySensor(CoordinatorEntity, BinarySensorEntity):
         now = dt_util.now()
         events = (self.coordinator.data or {}).get("events", [])
         active = [e for e in events if event_is_active(e, now)]
-        upcoming = sorted([e for e in events if event_is_upcoming(e, now)], key=lambda e: str(e.start))
+        upcoming = sorted([e for e in events if event_is_upcoming(e, now)], key=event_sort_key)
         today_count = sum(1 for e in events if event_is_today(e, now))
 
         attrs: dict = {"matches_today": today_count}

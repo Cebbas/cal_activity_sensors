@@ -13,3 +13,4 @@ venv/
 *.mp4
 .idea/
 .vscode/
+.claude/
