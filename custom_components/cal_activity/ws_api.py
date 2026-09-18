@@ -7,6 +7,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .activity_log import async_clear, async_get_entries, async_log
+from .calendar_sync import async_clear as async_clear_calendar_sync
 from .const import (
     CONF_DATE,
     CONF_DATE_END,
@@ -19,6 +20,7 @@ from .const import (
     CONF_PICTURE,
     CONF_RECURRING,
     CONF_SOURCES,
+    CONF_TARGET_CALENDAR,
     CONF_TRIGGER_MODE,
     DATE_SOURCE_CALENDAR,
     DATE_SOURCE_MANUAL,
@@ -54,6 +56,7 @@ def _entry_to_dict(entry) -> dict:
         result["recurring"] = entry.data.get(CONF_RECURRING, True)
         if kind == KIND_BIRTHDAY:
             result["person_entity"] = entry.data.get(CONF_PERSON)
+            result["target_calendar"] = entry.data.get(CONF_TARGET_CALENDAR)
     else:
         result["trigger_mode"] = entry.data.get(CONF_TRIGGER_MODE, TRIGGER_MODE_ACTIVE)
     return result
@@ -142,6 +145,7 @@ def _validate_kind_fields(connection, msg_id, msg) -> bool:
         vol.Optional("date_end"): vol.Any(str, None),
         vol.Optional("recurring", default=True): bool,
         vol.Optional("person_entity"): vol.Any(str, None),
+        vol.Optional("target_calendar"): vol.Any(str, None),
     }
 )
 @websocket_api.async_response
@@ -180,6 +184,7 @@ async def ws_create_entry(hass: HomeAssistant, connection, msg):
         vol.Optional("date_end"): vol.Any(str, None),
         vol.Optional("recurring", default=True): bool,
         vol.Optional("person_entity"): vol.Any(str, None),
+        vol.Optional("target_calendar"): vol.Any(str, None),
     }
 )
 @websocket_api.async_response
@@ -225,6 +230,8 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
         changes.append("återkommande ändrat")
     if kind == KIND_BIRTHDAY and msg.get("person_entity") != entry.data.get(CONF_PERSON):
         changes.append("kopplad person ändrad")
+    if kind == KIND_BIRTHDAY and msg.get("target_calendar") != entry.data.get(CONF_TARGET_CALENDAR):
+        changes.append("målkalender ändrad")
     if msg.get("icon") != entry.data.get(CONF_ICON):
         changes.append("ikon ändrad")
     if msg.get("picture") != entry.data.get(CONF_PICTURE):
@@ -245,6 +252,7 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
         new_data[CONF_DATE_END] = None
         new_data[CONF_RECURRING] = True
         new_data[CONF_PERSON] = msg.get("person_entity") or None
+        new_data[CONF_TARGET_CALENDAR] = msg.get("target_calendar") or None
     elif kind == KIND_COUNTDOWN:
         new_data[CONF_DATE_SOURCE] = msg.get("date_source", DATE_SOURCE_MANUAL)
         new_data[CONF_DATE] = msg.get("date") or None
@@ -271,6 +279,7 @@ async def ws_delete_entry(hass: HomeAssistant, connection, msg):
         return
     await hass.config_entries.async_remove(msg["entry_id"])
     await async_clear(hass, msg["entry_id"])
+    await async_clear_calendar_sync(hass, msg["entry_id"])
     connection.send_result(msg["id"], {"ok": True})
 
 

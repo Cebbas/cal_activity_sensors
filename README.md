@@ -50,6 +50,13 @@ egen flik i sidomenyn (kräver adminkonto). Där väljer du först typ:
 - Avancerat, valfritt: koppla till en `person.*`-entitet - används som
   bildkälla om ingen egen bild är satt, och läggs till som attributet
   `person`
+- Avancerat, valfritt: skriv till en kalender - välj en `calendar.*`-entitet
+  (t.ex. en delad Local Calendar) och sensorn lägger automatiskt in sitt
+  aktuella årliga tillfälle där som en heldagshändelse. Synkas om
+  automatiskt när nästa års datum räknas fram - ingen manuell uppdatering
+  behövs. Byter du kalender eller tar bort sensorn försvinner inte en
+  redan skapad händelse i den gamla kalendern automatiskt; ta bort den
+  manuellt om du inte vill ha den kvar
 
 Alla typer (inklusive Födelsedag) går att skapa och redigera både via
 sidopanelen och Inställningar → Enheter & tjänster, och visar en logg över

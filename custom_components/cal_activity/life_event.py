@@ -17,16 +17,20 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .activity import FailureStreakTracker, event_is_active, event_is_upcoming, fetch_matching_events
+from .calendar_sync import async_sync_birthday_occurrence
 from .const import (
     CONF_DATE,
     CONF_DATE_END,
     CONF_DATE_SOURCE,
     CONF_FILTER,
+    CONF_KIND,
     CONF_NAME,
     CONF_RECURRING,
     CONF_SOURCES,
+    CONF_TARGET_CALENDAR,
     DATE_SOURCE_CALENDAR,
     DOMAIN,
+    KIND_BIRTHDAY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -173,6 +177,12 @@ class LifeEventCoordinator(DataUpdateCoordinator):
                 days_remaining = 0
             else:
                 days_remaining = (end_inclusive - today).days
+
+        target_calendar = entry.data.get(CONF_TARGET_CALENDAR)
+        if start is not None and target_calendar and entry.data.get(CONF_KIND) == KIND_BIRTHDAY:
+            await async_sync_birthday_occurrence(
+                self.hass, entry, target_calendar, label or entry.title, start, end_inclusive
+            )
 
         return {
             "next_date": start,

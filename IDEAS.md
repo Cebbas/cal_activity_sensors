@@ -76,7 +76,23 @@
   Nedräkning-formuläret med en bortförklarande textrad. Panelen har även
   fått en översta flik-nivå (`_renderGroupTabs`) som delar upp allt i
   "Födelsedagar" och "Övrigt" (Aktivitet/Nedräkning), var med sin egen
-  rad av entitets-flikar och eget skapa-kort under.
+  rad av entitets-flikar och eget skapa-kort under. Personkopplingen är en
+  dropdown (`cal_activity/list_persons`, ws_api.py) mot faktiska
+  `person.*`-entiteter istället för fritext.
+- [x] Valfri, avancerad koppling till en målkalender (`target_calendar`,
+  bara Födelsedag): speglar sensorns aktuella årliga tillfälle som en
+  vanlig heldagshändelse i valfri `calendar.*`-entitet (t.ex. en delad
+  Local Calendar), en per birthday-sensor. `calendar_sync.py` håller reda
+  på senast synkade (datum, målkalender)-par i en egen liten `Store`
+  (inte i config entryns `data` - det hade triggat integrationens egen
+  update-listener och orsakat en reload-loop) så samma tillfälle inte
+  skapas om varje pollning; nästa års datum synkas automatiskt när
+  `LifeEventCoordinator` räknar fram det, ingen RRULE/återkommande-stöd
+  i kalender-tjänsten behövs. Kända begränsningar: byter man målkalender
+  eller tar bort födelsedagen försvinner inte en redan skapad händelse i
+  den gamla kalendern automatiskt (`calendar.create_event` returnerar
+  inget garanterat UID att radera via över alla kalender-plattformar) -
+  får tas bort manuellt vid behov.
 - [ ] Möjlighet att koppla en automation-mall direkt från panelen (förslag
   på trigger-YAML)
 - [x] "Life event"-liknande sensorer / nedräkningssensor: ny sensor-"kind"

@@ -26,6 +26,10 @@ KINDS = [KIND_ACTIVITY, KIND_COUNTDOWN, KIND_BIRTHDAY]
 # only shown to users with Advanced Mode enabled, see config_flow.py).
 CONF_PERSON = "person_entity"
 
+# Optional target calendar to mirror this birthday's yearly occurrence into
+# (e.g. a shared family Local Calendar), birthday-kind only, also advanced.
+CONF_TARGET_CALENDAR = "target_calendar"
+
 CONF_DATE_SOURCE = "date_source"
 DATE_SOURCE_MANUAL = "manual"
 DATE_SOURCE_CALENDAR = "calendar"

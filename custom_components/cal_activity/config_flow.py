@@ -21,6 +21,7 @@ from .const import (
     CONF_PICTURE,
     CONF_RECURRING,
     CONF_SOURCES,
+    CONF_TARGET_CALENDAR,
     CONF_TRIGGER_MODE,
     DATE_SOURCE_CALENDAR,
     DATE_SOURCE_MANUAL,
@@ -143,6 +144,14 @@ def _birthday_sensor_schema(defaults: dict | None = None) -> vol.Schema:
                 default=defaults.get(CONF_PERSON) or "",
                 description={"advanced": True},
             ): selector.EntitySelector(selector.EntitySelectorConfig(domain="person")),
+            # Advanced-mode-only: mirroring the birthday into a shared
+            # calendar (e.g. a family Local Calendar) is opt-in, not
+            # something every user wants their sensor to also do.
+            vol.Optional(
+                CONF_TARGET_CALENDAR,
+                default=defaults.get(CONF_TARGET_CALENDAR) or "",
+                description={"advanced": True},
+            ): selector.EntitySelector(selector.EntitySelectorConfig(domain="calendar")),
         }
     )
 
@@ -154,6 +163,7 @@ def _birthday_data_from_input(user_input: dict) -> dict:
         CONF_ICON: user_input.get(CONF_ICON),
         CONF_PICTURE: user_input.get(CONF_PICTURE),
         CONF_PERSON: user_input.get(CONF_PERSON) or None,
+        CONF_TARGET_CALENDAR: user_input.get(CONF_TARGET_CALENDAR) or None,
         # A birthday is always a single-day, yearly-recurring manual date -
         # same math as the countdown kind's manual+recurring combination,
         # just without exposing those two choices in its own, focused form.

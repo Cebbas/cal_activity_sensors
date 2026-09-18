@@ -549,6 +549,35 @@ class CalActivityPanel extends HTMLElement {
     return select;
   }
 
+  _buildCalendarSelect(value) {
+    const select = document.createElement("select");
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "Ingen";
+    if (!value) noneOpt.selected = true;
+    select.appendChild(noneOpt);
+
+    let matchedCurrent = !value;
+    this._calendars.forEach((cal) => {
+      const opt = document.createElement("option");
+      opt.value = cal.entity_id;
+      opt.textContent = cal.name;
+      if (value === cal.entity_id) {
+        opt.selected = true;
+        matchedCurrent = true;
+      }
+      select.appendChild(opt);
+    });
+    if (!matchedCurrent) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = `${value} (hittades inte)`;
+      opt.selected = true;
+      select.appendChild(opt);
+    }
+    return select;
+  }
+
   _buildTriggerModeSelect(value) {
     const select = document.createElement("select");
     [
@@ -792,6 +821,18 @@ class CalActivityPanel extends HTMLElement {
     const personSelect = this._buildPersonSelect(entry.person_entity || "");
     el.appendChild(personSelect);
 
+    const calendarLabel = document.createElement("div");
+    calendarLabel.className = "cc-section-title";
+    calendarLabel.textContent = "Skriv till kalender (avancerat, valfritt)";
+    el.appendChild(calendarLabel);
+    const calendarSelect = this._buildCalendarSelect(entry.target_calendar || "");
+    el.appendChild(calendarSelect);
+    const calendarHint = document.createElement("span");
+    calendarHint.className = "cc-picture-status";
+    calendarHint.textContent =
+      "Lägger in en heldagshändelse i den valda kalendern varje år, i takt med att sensorn räknar fram nästa datum.";
+    el.appendChild(calendarHint);
+
     return {
       element: el,
       getValues: () => ({
@@ -799,6 +840,7 @@ class CalActivityPanel extends HTMLElement {
         picture: picturePicker.getValue(),
         date: dateInput.value || "",
         person_entity: personSelect.value || "",
+        target_calendar: calendarSelect.value || "",
         // The panel's create/update websocket schema always requires
         // `sources` (shared with the Aktivitet/Nedräkning forms) even
         // though a birthday never uses it.
