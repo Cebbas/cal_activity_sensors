@@ -39,17 +39,26 @@ egen flik i sidomenyn (kräver adminkonto). Där väljer du först typ:
 
 **Nedräkning / livshändelse** (dagar kvar):
 - Ett fast datum (återkommande varje år som förval - räknar ålder/antal år,
-  t.ex. födelsedagar, namnsdagar, jubileum) eller ett matchande kalenderevent
+  t.ex. namnsdagar, jubileum) eller ett matchande kalenderevent
 - Valfritt slutdatum (eller kalenderns eget slutdatum) för flerdagshändelser
   som en resa - sensorn är då "på" hela perioden, inte bara första dagen
 
-Båda typerna låter dig sätta egen ikon och bild, och visar en logg över
-senaste ändringarna direkt på kortet.
+**Födelsedag** (dagar kvar, räknar ålder):
+- Ett eget, förenklat formulär (bara namn + datum) för det vanligaste
+  specialfallet av Nedräkning/livshändelse ovan - alltid återkommande,
+  alltid ett fast datum. Räknar automatiskt åldern som attributet `age`
+- Avancerat, valfritt: koppla till en `person.*`-entitet - används som
+  bildkälla om ingen egen bild är satt, och läggs till som attributet
+  `person`
+
+Alla typer (inklusive Födelsedag) går att skapa och redigera både via
+sidopanelen och Inställningar → Enheter & tjänster, och visar en logg över
+senaste ändringarna direkt på panelkortet.
 
 Går även via Inställningar → Enheter & tjänster → Lägg till integration →
 **Cal Activity Sensors**, om du föredrar den vanliga inställningsdialogen.
 Redigera/ta bort dem enklast i panelen, eller via Konfigurera-knappen i
-Inställningar → Enheter & tjänster.
+Inställningar → Enheter & tjänster - båda täcker alla typer.
 
 ## 3. Vad du får
 
@@ -65,6 +74,8 @@ Varje konfiguration skapar exakt en `binary_sensor`-entitet - state är
   (`upcoming`/`in_progress`/`passed`), `days_remaining`, `days_until_start`,
   `next_date`, `label`, `years`, `end_date`/`day_of_span`/`span_length`
   (flerdagshändelser), `failed_sources`
+- **Födelsedag**: samma som Nedräkning/livshändelse ovan, plus `age` (alias
+  för `years`) och, om kopplad till en person, attributet `person`
 
 Exempel: en aktivitetssensor med källa = din Google-kalender och filter
 "inkludera: Zoo" ger en `binary_sensor.zoo_besok` som är `on` när ett

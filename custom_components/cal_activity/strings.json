@@ -5,7 +5,8 @@
         "title": "Välj sensor-typ",
         "menu_options": {
           "activity": "Aktivitet (kalenderevent pågår/inträffar)",
-          "countdown": "Nedräkning / livshändelse (dagar kvar)"
+          "countdown": "Nedräkning / livshändelse (dagar kvar)",
+          "birthday": "Födelsedag (dagar kvar, räknar ålder)"
         }
       },
       "activity": {
@@ -42,6 +43,17 @@
           "use_regex": "Tolka orden som regex-mönster",
           "case_sensitive": "Skiftlägeskänslig"
         }
+      },
+      "birthday": {
+        "title": "Skapa födelsedag",
+        "description": "Skapar en sensor som är \"på\" den dag personen fyller år. Räknar automatiskt åldern som attributet \"age\".",
+        "data": {
+          "name": "Namn",
+          "date": "Födelsedatum (ÅÅÅÅ-MM-DD)",
+          "icon": "Ikon",
+          "picture": "Bild (lämna tom för att använda personens egen bild, om kopplad nedan)",
+          "person_entity": "Koppla till person (avancerat, valfritt)"
+        }
       }
     },
     "error": {
@@ -69,7 +81,8 @@
           "date_source": "Datumkälla",
           "date": "Datum (ÅÅÅÅ-MM-DD)",
           "date_end": "Slutdatum (ÅÅÅÅ-MM-DD), valfritt - för flerdagshändelser som en resa",
-          "recurring": "Återkommande varje år (räknar ålder/antal år)"
+          "recurring": "Återkommande varje år (räknar ålder/antal år)",
+          "person_entity": "Koppla till person (avancerat, valfritt)"
         }
       }
     }

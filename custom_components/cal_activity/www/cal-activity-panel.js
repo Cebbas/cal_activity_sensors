@@ -166,7 +166,9 @@ class CalActivityPanel extends HTMLElement {
       btn.type = "button";
       btn.className = "cc-subtab" + (item.entry_id === activeKey ? " active" : "");
       const icon = document.createElement("ha-icon");
-      icon.setAttribute("icon", item.kind === "countdown" ? "mdi:cake-variant" : "mdi:calendar-check");
+      const subtabDefaultIcon =
+        item.kind === "birthday" ? "mdi:cake-variant" : item.kind === "countdown" ? "mdi:calendar-star" : "mdi:calendar-check";
+      icon.setAttribute("icon", item.icon || subtabDefaultIcon);
       btn.appendChild(icon);
       btn.append(item.name);
       btn.onclick = () => onSelect(item.entry_id);
@@ -487,6 +489,7 @@ class CalActivityPanel extends HTMLElement {
     [
       { value: "activity", label: "Aktivitet (event pågår just nu / idag)" },
       { value: "countdown", label: "Nedräkning / livshändelse (dagar kvar)" },
+      { value: "birthday", label: "Födelsedag (dagar kvar, räknar ålder)" },
     ].forEach(({ value: v, label }) => {
       const opt = document.createElement("option");
       opt.value = v;
@@ -626,6 +629,16 @@ class CalActivityPanel extends HTMLElement {
     recurringLabel.append(" Återkommande varje år (räknar ålder/antal år)");
     manualBlock.appendChild(recurringLabel);
 
+    const personLabel = document.createElement("div");
+    personLabel.className = "cc-section-title";
+    personLabel.textContent = "Koppla till person (endast Födelsedag, avancerat, valfritt)";
+    manualBlock.appendChild(personLabel);
+    const personInput = document.createElement("input");
+    personInput.type = "text";
+    personInput.placeholder = "person.namn";
+    personInput.value = entry.person_entity || "";
+    manualBlock.appendChild(personInput);
+
     const calendarBlock = document.createElement("div");
     const calSourcesLabel = document.createElement("div");
     calSourcesLabel.className = "cc-section-title";
@@ -660,6 +673,7 @@ class CalActivityPanel extends HTMLElement {
         date: dateInput.value || "",
         date_end: dateEndInput.value || "",
         recurring: recurringCb.checked,
+        person_entity: personInput.value.trim() || "",
         sources: sourcePicker.getSelected(),
         ...filterControls.getValues(),
       }),
@@ -716,12 +730,14 @@ class CalActivityPanel extends HTMLElement {
   _renderEntryCard(entry) {
     const card = document.createElement("div");
     card.className = "cc-card";
-    const isCountdown = entry.kind === "countdown";
+    const isBirthday = entry.kind === "birthday";
+    const isCountdown = entry.kind === "countdown" || isBirthday;
 
     const header = document.createElement("div");
     header.className = "cc-card-header";
     const icon = document.createElement("ha-icon");
-    icon.setAttribute("icon", entry.icon || (isCountdown ? "mdi:calendar-star" : "mdi:calendar-check"));
+    const defaultIcon = isBirthday ? "mdi:cake-variant" : isCountdown ? "mdi:calendar-star" : "mdi:calendar-check";
+    icon.setAttribute("icon", entry.icon || defaultIcon);
     header.appendChild(icon);
     if (entry.picture) {
       const avatar = document.createElement("img");
@@ -739,7 +755,9 @@ class CalActivityPanel extends HTMLElement {
     const kindNote = document.createElement("p");
     kindNote.className = "subtitle";
     kindNote.style.margin = "0 0 12px 0";
-    kindNote.textContent = isCountdown
+    kindNote.textContent = isBirthday
+      ? "Födelsedag – \"på\" den dag personen fyller år. Räknar automatiskt åldern som attributet \"age\". Datumkälla/slutdatum/källkalendrar nedan gäller bara vanlig Nedräkning/livshändelse, inte Födelsedag."
+      : isCountdown
       ? "Nedräkning / livshändelse – \"på\" den dag ett fast datum eller kalenderevent inträffar, med dagar kvar som attribut. Ange ett slutdatum (eller ett kalenderevent som redan är flera dagar långt) för att sensorn ska vara \"på\" hela perioden, t.ex. en resa."
       : "Aktivitetssensor – \"på\" när ett filtrerat kalenderevent pågår just nu / idag.";
     card.appendChild(kindNote);
@@ -823,7 +841,7 @@ class CalActivityPanel extends HTMLElement {
     const renderFields = () => {
       fieldsContainer.innerHTML = "";
       fieldsSection =
-        kindSelect.value === "countdown"
+        kindSelect.value === "countdown" || kindSelect.value === "birthday"
           ? this._buildCountdownFieldsSection({})
           : this._buildActivityFieldsSection({});
       fieldsContainer.appendChild(fieldsSection.element);
@@ -847,6 +865,10 @@ class CalActivityPanel extends HTMLElement {
       const values = fieldsSection.getValues();
       if (kind === "activity" && !values.sources.length) {
         errorBox.textContent = "Välj minst en källkalender";
+        return;
+      }
+      if (kind === "birthday" && !values.date) {
+        errorBox.textContent = "Ange ett datum";
         return;
       }
       if (kind === "countdown") {

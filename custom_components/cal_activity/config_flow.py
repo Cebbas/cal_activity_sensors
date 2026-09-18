@@ -17,6 +17,7 @@ from .const import (
     CONF_ICON,
     CONF_KIND,
     CONF_NAME,
+    CONF_PERSON,
     CONF_PICTURE,
     CONF_RECURRING,
     CONF_SOURCES,
@@ -27,6 +28,7 @@ from .const import (
     DOMAIN,
     FILTER_FIELDS,
     KIND_ACTIVITY,
+    KIND_BIRTHDAY,
     KIND_COUNTDOWN,
     TRIGGER_MODE_ACTIVE,
     TRIGGER_MODES,
@@ -124,6 +126,59 @@ def _countdown_sensor_schema(defaults: dict | None = None) -> vol.Schema:
     )
 
 
+def _birthday_sensor_schema(defaults: dict | None = None) -> vol.Schema:
+    defaults = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, "Födelsedag")): str,
+            # Plain text, not a DateSelector, for the same reason as the
+            # countdown schema: consistent validation/error handling below.
+            vol.Required(CONF_DATE, default=defaults.get(CONF_DATE) or ""): str,
+            **_icon_and_picture_fields(defaults),
+            # Advanced-mode-only: linking a birthday to a person entity is a
+            # nice-to-have (picture fallback, an attribute automations can
+            # key off), not something every user needs to see up front.
+            vol.Optional(
+                CONF_PERSON,
+                default=defaults.get(CONF_PERSON) or "",
+                description={"advanced": True},
+            ): selector.EntitySelector(selector.EntitySelectorConfig(domain="person")),
+        }
+    )
+
+
+def _birthday_data_from_input(user_input: dict) -> dict:
+    return {
+        CONF_KIND: KIND_BIRTHDAY,
+        CONF_NAME: user_input[CONF_NAME],
+        CONF_ICON: user_input.get(CONF_ICON),
+        CONF_PICTURE: user_input.get(CONF_PICTURE),
+        CONF_PERSON: user_input.get(CONF_PERSON) or None,
+        # A birthday is always a single-day, yearly-recurring manual date -
+        # same math as the countdown kind's manual+recurring combination,
+        # just without exposing those two choices in its own, focused form.
+        CONF_DATE_SOURCE: DATE_SOURCE_MANUAL,
+        CONF_DATE: user_input.get(CONF_DATE) or None,
+        CONF_DATE_END: None,
+        CONF_RECURRING: True,
+        CONF_SOURCES: [],
+        CONF_FILTER: None,
+    }
+
+
+def _birthday_errors(user_input: dict) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    date_str = user_input.get(CONF_DATE)
+    if not date_str:
+        errors["date"] = "no_date"
+        return errors
+    try:
+        date.fromisoformat(date_str)
+    except ValueError:
+        errors["date"] = "invalid_date"
+    return errors
+
+
 def _countdown_data_from_input(user_input: dict) -> dict:
     return {
         CONF_KIND: KIND_COUNTDOWN,
@@ -176,7 +231,9 @@ class CalActivityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        return self.async_show_menu(step_id="user", menu_options=["activity", "countdown"])
+        return self.async_show_menu(
+            step_id="user", menu_options=["activity", "countdown", "birthday"]
+        )
 
     async def async_step_activity(self, user_input=None):
         errors: dict[str, str] = {}
@@ -213,6 +270,19 @@ class CalActivityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="countdown", data_schema=_countdown_sensor_schema(), errors=errors
         )
 
+    async def async_step_birthday(self, user_input=None):
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            errors = _birthday_errors(user_input)
+            if not errors:
+                data = _birthday_data_from_input(user_input)
+                return self.async_create_entry(title=user_input[CONF_NAME], data=data)
+
+        return self.async_show_form(
+            step_id="birthday", data_schema=_birthday_sensor_schema(), errors=errors
+        )
+
     # Kept as a separate context source (used by the sidebar panel's "create"
     # button) even though it shows the exact same forms as the interactive
     # menu-driven steps - having a distinct source lets the panel init the
@@ -222,6 +292,8 @@ class CalActivityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         kind = (user_input or {}).get(CONF_KIND, KIND_ACTIVITY)
         if kind == KIND_COUNTDOWN:
             return await self.async_step_countdown(user_input)
+        if kind == KIND_BIRTHDAY:
+            return await self.async_step_birthday(user_input)
         return await self.async_step_activity(user_input)
 
     @staticmethod
@@ -237,6 +309,8 @@ class CalActivityOptionsFlow(config_entries.OptionsFlow):
         current = self.config_entry.data
         if current.get(CONF_KIND) == KIND_COUNTDOWN:
             return await self._async_step_countdown(user_input)
+        if current.get(CONF_KIND) == KIND_BIRTHDAY:
+            return await self._async_step_birthday(user_input)
         return await self._async_step_activity(user_input)
 
     async def _async_step_activity(self, user_input=None):
@@ -283,5 +357,25 @@ class CalActivityOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_countdown_sensor_schema(current),
+            errors=errors,
+        )
+
+    async def _async_step_birthday(self, user_input=None):
+        errors: dict[str, str] = {}
+        current = self.config_entry.data
+
+        if user_input is not None:
+            errors = _birthday_errors(user_input)
+            if not errors:
+                new_data = dict(current)
+                new_data.update(_birthday_data_from_input(user_input))
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry, data=new_data, title=user_input[CONF_NAME]
+                )
+                return self.async_create_entry(title="", data={})
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_birthday_sensor_schema(current),
             errors=errors,
         )

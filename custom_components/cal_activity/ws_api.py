@@ -15,6 +15,7 @@ from .const import (
     CONF_ICON,
     CONF_KIND,
     CONF_NAME,
+    CONF_PERSON,
     CONF_PICTURE,
     CONF_RECURRING,
     CONF_SOURCES,
@@ -23,9 +24,16 @@ from .const import (
     DATE_SOURCE_MANUAL,
     DOMAIN,
     KIND_ACTIVITY,
+    KIND_BIRTHDAY,
     KIND_COUNTDOWN,
     TRIGGER_MODE_ACTIVE,
 )
+
+# Kinds whose data is shaped like the date-based Nedräkning/livshändelse
+# form (date/date_source/recurring) rather than the calendar-filter Aktivitet
+# form (sources/filter/trigger_mode) - a birthday is the same shape, just a
+# more focused subset of it (see config_flow.py's _birthday_* helpers).
+_DATE_BASED_KINDS = (KIND_COUNTDOWN, KIND_BIRTHDAY)
 
 
 def _entry_to_dict(entry) -> dict:
@@ -39,11 +47,13 @@ def _entry_to_dict(entry) -> dict:
         "picture": entry.data.get(CONF_PICTURE),
         "filter": entry.data.get(CONF_FILTER),
     }
-    if kind == KIND_COUNTDOWN:
+    if kind in _DATE_BASED_KINDS:
         result["date_source"] = entry.data.get(CONF_DATE_SOURCE, DATE_SOURCE_MANUAL)
         result["date"] = entry.data.get(CONF_DATE)
         result["date_end"] = entry.data.get(CONF_DATE_END)
         result["recurring"] = entry.data.get(CONF_RECURRING, True)
+        if kind == KIND_BIRTHDAY:
+            result["person_entity"] = entry.data.get(CONF_PERSON)
     else:
         result["trigger_mode"] = entry.data.get(CONF_TRIGGER_MODE, TRIGGER_MODE_ACTIVE)
     return result
@@ -72,7 +82,14 @@ async def ws_list_calendars(hass: HomeAssistant, connection, msg):
 def _validate_kind_fields(connection, msg_id, msg) -> bool:
     """Shared create/update validation. Returns False (after sending an error) if invalid."""
     kind = msg.get("kind", KIND_ACTIVITY)
-    if kind == KIND_COUNTDOWN:
+    if kind == KIND_BIRTHDAY:
+        # Always a fixed date, never calendar-sourced - the panel's
+        # countdown field-set still renders a date_source picker for it
+        # (reusing the same section), but a birthday ignores that choice.
+        if not msg.get("date"):
+            connection.send_error(msg_id, "no_date", "Ange ett datum")
+            return False
+    elif kind == KIND_COUNTDOWN:
         date_source = msg.get("date_source", DATE_SOURCE_MANUAL)
         if date_source == DATE_SOURCE_MANUAL and not msg.get("date"):
             connection.send_error(msg_id, "no_date", "Ange ett datum")
@@ -112,6 +129,7 @@ def _validate_kind_fields(connection, msg_id, msg) -> bool:
         vol.Optional("date"): vol.Any(str, None),
         vol.Optional("date_end"): vol.Any(str, None),
         vol.Optional("recurring", default=True): bool,
+        vol.Optional("person_entity"): vol.Any(str, None),
     }
 )
 @websocket_api.async_response
@@ -149,6 +167,7 @@ async def ws_create_entry(hass: HomeAssistant, connection, msg):
         vol.Optional("date"): vol.Any(str, None),
         vol.Optional("date_end"): vol.Any(str, None),
         vol.Optional("recurring", default=True): bool,
+        vol.Optional("person_entity"): vol.Any(str, None),
     }
 )
 @websocket_api.async_response
@@ -186,12 +205,14 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
         CONF_TRIGGER_MODE, TRIGGER_MODE_ACTIVE
     ):
         changes.append("triggerläge ändrat")
-    if kind == KIND_COUNTDOWN and msg.get("date") != entry.data.get(CONF_DATE):
+    if kind in _DATE_BASED_KINDS and msg.get("date") != entry.data.get(CONF_DATE):
         changes.append("datum ändrat")
     if kind == KIND_COUNTDOWN and msg.get("date_end") != entry.data.get(CONF_DATE_END):
         changes.append("slutdatum ändrat")
     if kind == KIND_COUNTDOWN and msg.get("recurring", True) != entry.data.get(CONF_RECURRING, True):
         changes.append("återkommande ändrat")
+    if kind == KIND_BIRTHDAY and msg.get("person_entity") != entry.data.get(CONF_PERSON):
+        changes.append("kopplad person ändrad")
     if msg.get("icon") != entry.data.get(CONF_ICON):
         changes.append("ikon ändrad")
     if msg.get("picture") != entry.data.get(CONF_PICTURE):
@@ -204,7 +225,15 @@ async def ws_update_entry(hass: HomeAssistant, connection, msg):
     new_data[CONF_ICON] = msg.get("icon")
     new_data[CONF_PICTURE] = msg.get("picture")
     new_data[CONF_FILTER] = rule
-    if kind == KIND_COUNTDOWN:
+    if kind == KIND_BIRTHDAY:
+        # Always a fixed, yearly-recurring date - same shape as countdown's
+        # manual+recurring combination, just without exposing those choices.
+        new_data[CONF_DATE_SOURCE] = DATE_SOURCE_MANUAL
+        new_data[CONF_DATE] = msg.get("date") or None
+        new_data[CONF_DATE_END] = None
+        new_data[CONF_RECURRING] = True
+        new_data[CONF_PERSON] = msg.get("person_entity") or None
+    elif kind == KIND_COUNTDOWN:
         new_data[CONF_DATE_SOURCE] = msg.get("date_source", DATE_SOURCE_MANUAL)
         new_data[CONF_DATE] = msg.get("date") or None
         new_data[CONF_DATE_END] = msg.get("date_end") or None

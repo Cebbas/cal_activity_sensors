@@ -29,10 +29,13 @@ from .const import (
     CONF_ICON,
     CONF_KIND,
     CONF_NAME,
+    CONF_PERSON,
     CONF_PICTURE,
     CONF_TRIGGER_MODE,
     DEFAULT_ACTIVITY_ICON,
+    DEFAULT_BIRTHDAY_ICON,
     DEFAULT_COUNTDOWN_ICON,
+    KIND_BIRTHDAY,
     KIND_COUNTDOWN,
     TRIGGER_MODE_TODAY,
 )
@@ -44,9 +47,11 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    if entry.data.get(CONF_KIND) == KIND_COUNTDOWN:
+    kind = entry.data.get(CONF_KIND)
+    if kind in (KIND_COUNTDOWN, KIND_BIRTHDAY):
         coordinator = await async_get_or_create_life_event_coordinator(hass, entry)
-        async_add_entities([CountdownBinarySensor(coordinator, entry)])
+        sensor_cls = BirthdayBinarySensor if kind == KIND_BIRTHDAY else CountdownBinarySensor
+        async_add_entities([sensor_cls(coordinator, entry)])
         return
 
     coordinator = await async_get_or_create_coordinator(hass, entry)
@@ -165,4 +170,44 @@ class CountdownBinarySensor(CoordinatorEntity, BinarySensorEntity):
         failed = data.get("failed") or []
         if failed:
             attrs["failed_sources"] = failed
+        return attrs
+
+
+class BirthdayBinarySensor(CountdownBinarySensor):
+    """A birthday is the same single-day, always-recurring date math as
+    CountdownBinarySensor - kept as a thin subclass (not a duplicated
+    coordinator/entity) rather than a fully separate implementation, and
+    deliberately keeps the same unique_id suffix as its parent so a
+    countdown entry migrated to this kind keeps its existing entity_id and
+    history instead of becoming a new, orphaned entity.
+
+    Its own kind mainly exists so the config flow can offer a focused
+    two-field form (name + date) instead of every countdown option, and so
+    the panel/UI can treat it as its own category.
+    """
+
+    @property
+    def icon(self) -> str:
+        return self._entry.data.get(CONF_ICON) or DEFAULT_BIRTHDAY_ICON
+
+    @property
+    def entity_picture(self) -> str | None:
+        picture = self._entry.data.get(CONF_PICTURE)
+        if picture:
+            return picture
+        person = self._entry.data.get(CONF_PERSON)
+        if person:
+            person_state = self.hass.states.get(person)
+            if person_state:
+                return person_state.attributes.get("entity_picture")
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs = dict(super().extra_state_attributes)
+        if attrs.get("years") is not None:
+            attrs["age"] = attrs["years"]
+        person = self._entry.data.get(CONF_PERSON)
+        if person:
+            attrs["person"] = person
         return attrs

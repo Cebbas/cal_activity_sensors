@@ -46,11 +46,32 @@
   `life_event.py`s datummatte (`next_span`, `_end_inclusive`, `_safe_date`,
   inkl. skottdag och årsskiftesspann) och båda coordinatorernas
   uppdateringslogik (manuellt/kalenderdatum, retry/backoff), samt
-  `binary_sensor.py`s `is_on`/attribut-logik för båda sensor-typerna.
+  `binary_sensor.py`s `is_on`/attribut-logik för alla tre sensor-typerna
+  (`tests/test_birthday.py` täcker `BirthdayBinarySensor` och
+  migreringsfunktionen separat).
 
 ## Trevligt-att-ha (ej påbörjat)
 - [ ] Fler sensor-typer, t.ex. "minuter kvar till nästa match" eller "antal
   matchande event denna vecka"
+- [x] Egen "Födelsedag"-kind (`birthday`, `const.py`), utbruten ur
+  Nedräkning/livshändelse: ett eget, fokuserat formulär (bara namn + datum -
+  alltid återkommande, alltid fast datum, inga kalender-/flerdagsval).
+  Återanvänder samma `LifeEventCoordinator`/datummatte som countdown (ingen
+  duplicerad logik) via en tunn `BirthdayBinarySensor`-subklass i
+  `binary_sensor.py` med samma `unique_id`-suffix som föräldraklassen, plus
+  attributet `age` (alias för `years`). Avancerat, valfritt: koppla till en
+  `person.*`-entitet (`person_entity`, bara synligt i Avancerat läge) -
+  används som bildkälla om ingen egen bild är satt, och exponeras som
+  attributet `person`. Befintliga countdown-entries vars namn innehåller
+  "födelsedag"/"birthday" migreras automatiskt till `birthday`-kind vid
+  uppstart (`_migrate_birthday_named_countdowns`, `__init__.py`) - samma
+  entity_id/historik, bara kind och formulär byts. Panelens eget
+  websocket-API (`ws_api.py`, separat från `config_flow.py` - det är det
+  panelen faktiskt pratar med) och dess formulär
+  (`www/cal-activity-panel.js`) är uppdaterade i samma svep: eget typval
+  "Födelsedag" i skapa-kortet, återanvänder Nedräkning/livshändelse-fälten
+  för redigering/skapande (inkl. person-kopplingen), egen ikon i
+  list-/kortvy.
 - [ ] Möjlighet att koppla en automation-mall direkt från panelen (förslag
   på trigger-YAML)
 - [x] "Life event"-liknande sensorer / nedräkningssensor: ny sensor-"kind"

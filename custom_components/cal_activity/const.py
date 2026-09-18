@@ -19,7 +19,12 @@ DEFAULT_ACTIVITY_ICON = "mdi:calendar-check"
 CONF_KIND = "kind"
 KIND_ACTIVITY = "activity"
 KIND_COUNTDOWN = "countdown"
-KINDS = [KIND_ACTIVITY, KIND_COUNTDOWN]
+KIND_BIRTHDAY = "birthday"
+KINDS = [KIND_ACTIVITY, KIND_COUNTDOWN, KIND_BIRTHDAY]
+
+# Optional link to a person entity, birthday-kind only ("advanced option" -
+# only shown to users with Advanced Mode enabled, see config_flow.py).
+CONF_PERSON = "person_entity"
 
 CONF_DATE_SOURCE = "date_source"
 DATE_SOURCE_MANUAL = "manual"
@@ -31,5 +36,6 @@ CONF_DATE_END = "date_end"
 CONF_RECURRING = "recurring"
 
 DEFAULT_COUNTDOWN_ICON = "mdi:calendar-star"
+DEFAULT_BIRTHDAY_ICON = "mdi:cake-variant"
 
 PLATFORMS = ["binary_sensor"]
