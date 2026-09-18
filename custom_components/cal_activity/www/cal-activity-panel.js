@@ -10,6 +10,7 @@ class CalActivityPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._entries = [];
     this._calendars = [];
+    this._persons = [];
     this._initialized = false;
     this._activeKey = "__new__"; // entry_id, or "__new__" for the create-new sub-tab
     this._activeGroup = "other"; // "birthday" or "other" - which top-level tab is showing
@@ -120,12 +121,14 @@ class CalActivityPanel extends HTMLElement {
   }
 
   async _reload() {
-    const [entriesResp, calendarsResp] = await Promise.all([
+    const [entriesResp, calendarsResp, personsResp] = await Promise.all([
       this._hass.callWS({ type: "cal_activity/list_entries" }),
       this._hass.callWS({ type: "cal_activity/list_calendars" }),
+      this._hass.callWS({ type: "cal_activity/list_persons" }),
     ]);
     this._entries = entriesResp.entries;
     this._calendars = calendarsResp.calendars;
+    this._persons = personsResp.persons;
     this._render();
   }
 
@@ -513,6 +516,39 @@ class CalActivityPanel extends HTMLElement {
     };
   }
 
+  _buildPersonSelect(value) {
+    const select = document.createElement("select");
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "Ingen";
+    if (!value) noneOpt.selected = true;
+    select.appendChild(noneOpt);
+
+    let matchedCurrent = !value;
+    this._persons.forEach((person) => {
+      const opt = document.createElement("option");
+      opt.value = person.entity_id;
+      opt.textContent = person.name;
+      if (value === person.entity_id) {
+        opt.selected = true;
+        matchedCurrent = true;
+      }
+      select.appendChild(opt);
+    });
+    // The saved person entity may have been removed/renamed since this
+    // sensor was linked to it - keep it selectable (and visibly odd, via
+    // the raw entity_id as its own label) rather than silently dropping it
+    // the first time this form is opened and saved again.
+    if (!matchedCurrent) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = `${value} (hittades inte)`;
+      opt.selected = true;
+      select.appendChild(opt);
+    }
+    return select;
+  }
+
   _buildTriggerModeSelect(value) {
     const select = document.createElement("select");
     [
@@ -753,11 +789,8 @@ class CalActivityPanel extends HTMLElement {
     personLabel.className = "cc-section-title";
     personLabel.textContent = "Koppla till person (avancerat, valfritt)";
     el.appendChild(personLabel);
-    const personInput = document.createElement("input");
-    personInput.type = "text";
-    personInput.placeholder = "person.namn";
-    personInput.value = entry.person_entity || "";
-    el.appendChild(personInput);
+    const personSelect = this._buildPersonSelect(entry.person_entity || "");
+    el.appendChild(personSelect);
 
     return {
       element: el,
@@ -765,7 +798,7 @@ class CalActivityPanel extends HTMLElement {
         icon: iconPicker.getValue(),
         picture: picturePicker.getValue(),
         date: dateInput.value || "",
-        person_entity: personInput.value.trim() || "",
+        person_entity: personSelect.value || "",
         // The panel's create/update websocket schema always requires
         // `sources` (shared with the Aktivitet/Nedräkning forms) even
         // though a birthday never uses it.

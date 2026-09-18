@@ -79,6 +79,18 @@ async def ws_list_calendars(hass: HomeAssistant, connection, msg):
     connection.send_result(msg["id"], {"calendars": calendars})
 
 
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_persons"})
+@websocket_api.async_response
+async def ws_list_persons(hass: HomeAssistant, connection, msg):
+    persons = [
+        {"entity_id": state.entity_id, "name": state.attributes.get("friendly_name", state.entity_id)}
+        for state in hass.states.async_all("person")
+    ]
+    persons.sort(key=lambda p: p["name"])
+    connection.send_result(msg["id"], {"persons": persons})
+
+
 def _validate_kind_fields(connection, msg_id, msg) -> bool:
     """Shared create/update validation. Returns False (after sending an error) if invalid."""
     kind = msg.get("kind", KIND_ACTIVITY)
@@ -275,6 +287,7 @@ async def ws_get_activity_log(hass: HomeAssistant, connection, msg):
 def async_register_ws_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_entries)
     websocket_api.async_register_command(hass, ws_list_calendars)
+    websocket_api.async_register_command(hass, ws_list_persons)
     websocket_api.async_register_command(hass, ws_create_entry)
     websocket_api.async_register_command(hass, ws_update_entry)
     websocket_api.async_register_command(hass, ws_delete_entry)
