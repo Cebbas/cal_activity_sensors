@@ -111,6 +111,15 @@
   options flow eller panelen
 - [x] Diagnostics-stöd (`diagnostics.py`) för att exportera felsökningsdata
 
+- [x] Sensorerna slår om exakt i tid (0.0.13): en aktivitetssensor räknas
+  om precis vid nästa händelses start/slut och vid midnatt
+  (`TransitionScheduler`/`next_activity_transition` i activity.py) från
+  redan hämtade händelser, istället för först vid nästa pollning (upp
+  till 5 min sent). Nedräkningar/födelsedagar räknas om direkt efter
+  midnatt istället för vid nästa timpollning (upp till en timme sent).
+
 ## Kända begränsningar
 - Pollar källkalendrarna var 5:e minut (hårdkodat) via
-  `calendar.get_events` – ingen realtidspush
+  `calendar.get_events` – ingen realtidspush. En händelse som läggs till
+  eller flyttas syns alltså först vid nästa pollning, men själva
+  på/av-växlingen för redan hämtade händelser sker på sekunden.

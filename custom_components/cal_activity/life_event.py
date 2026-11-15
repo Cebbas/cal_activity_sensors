@@ -16,7 +16,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .activity import FailureStreakTracker, event_is_active, event_is_upcoming, fetch_matching_events
+from .activity import (
+    FailureStreakTracker,
+    TransitionScheduler,
+    event_is_active,
+    event_is_upcoming,
+    fetch_matching_events,
+    next_local_midnight,
+)
 from .calendar_sync import async_sync_birthday_occurrence
 from .const import (
     CONF_DATE,
@@ -109,9 +116,15 @@ class LifeEventCoordinator(DataUpdateCoordinator):
         )
         self.entry = entry
         self._failure_tracker = FailureStreakTracker()
+        # Räknar om direkt efter midnatt istället för vid nästa timpollning,
+        # så dagar kvar / "on idag" byter i rätt ögonblick.
+        self.transitions = TransitionScheduler(hass)
 
     async def _async_update_data(self):
         entry = self.entry
+        self.transitions.schedule(
+            next_local_midnight(dt_util.now()) + timedelta(seconds=1), self._on_midnight
+        )
         date_source = entry.data.get(CONF_DATE_SOURCE)
         now = dt_util.now()
         today = now.date()
@@ -196,6 +209,10 @@ class LifeEventCoordinator(DataUpdateCoordinator):
             "span_length": span_length,
             "failed": failed,
         }
+
+
+    def _on_midnight(self) -> None:
+        self.hass.async_create_task(self.async_refresh())
 
 
 async def async_get_or_create_life_event_coordinator(

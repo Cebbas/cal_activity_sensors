@@ -13,8 +13,9 @@ import re
 
 from homeassistant.components.calendar import CalendarEvent
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -161,6 +162,59 @@ def event_is_today(event, now) -> bool:
     return start_date == now_date
 
 
+def next_local_midnight(now: datetime) -> datetime:
+    """Början på nästa lokala dygn (som aware datetime)."""
+    return dt_util.start_of_local_day(dt_util.as_local(now).date() + timedelta(days=1))
+
+
+def next_activity_transition(events, now: datetime) -> datetime:
+    """Nästa tidpunkt då en aktivitetssensors läge kan ändras utan ny pollning.
+
+    Det är nästa start eller slut bland de hämtade händelserna (slutet + 1 s,
+    eftersom event_is_active räknar sluttiden som inklusive), eller nästa
+    midnatt - för "inträffar idag"-läget och matches_today - beroende på
+    vilket som kommer först.
+    """
+    now_utc = _as_comparable_datetime(now)
+    candidates = [dt_util.as_utc(next_local_midnight(now))]
+    for event in events:
+        start = _as_comparable_datetime(event.start)
+        end = _as_comparable_datetime(event.end) + timedelta(seconds=1)
+        candidates.extend(t for t in (start, end) if t > now_utc)
+    return min(candidates)
+
+
+class TransitionScheduler:
+    """Kör en åtgärd exakt vid nästa tillståndsövergång, mellan pollningarna.
+
+    Pollningen (var 5:e minut / varje timme) hämtar händelserna, men utan
+    detta räknades sensorernas läge bara om vid nästa pollning - en
+    aktivitet kunde slå om upp till 5 minuter sent, och en nedräkning upp
+    till en timme efter midnatt.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+        self._unsub = None
+
+    def schedule(self, when: datetime | None, action) -> None:
+        self.cancel()
+        if when is None:
+            return
+
+        @callback
+        def _fire(_now) -> None:
+            self._unsub = None
+            action()
+
+        self._unsub = async_track_point_in_time(self._hass, _fire, when)
+
+    def cancel(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+
+
 def _failed_sources_issue_id(entry_id: str) -> str:
     return f"failed_sources_{entry_id}"
 
@@ -224,6 +278,7 @@ class ActivitySensorCoordinator(DataUpdateCoordinator):
         )
         self.entry = entry
         self._failure_tracker = FailureStreakTracker()
+        self.transitions = TransitionScheduler(hass)
 
     async def _async_update_data(self):
         sources: list[str] = self.entry.data.get(CONF_SOURCES, [])
@@ -236,7 +291,19 @@ class ActivitySensorCoordinator(DataUpdateCoordinator):
 
         await self._failure_tracker.async_update(self.hass, self.entry, failed)
 
+        self._schedule_next_transition(events)
         return {"events": events, "failed": failed}
+
+    def _schedule_next_transition(self, events) -> None:
+        self.transitions.schedule(next_activity_transition(events, dt_util.now()), self._on_transition)
+
+    @callback
+    def _on_transition(self) -> None:
+        # Sensorerna räknar sitt läge live från redan hämtade händelser
+        # (is_on/extra_state_attributes), så det räcker att be dem skriva
+        # om sitt tillstånd - ingen ny hämtning behövs.
+        self.async_update_listeners()
+        self._schedule_next_transition((self.data or {}).get("events", []))
 
 
 async def async_get_or_create_coordinator(

@@ -91,6 +91,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        hass.data[DOMAIN].pop(f"{entry.entry_id}_coordinator", None)
-        hass.data[DOMAIN].pop(f"{entry.entry_id}_life_coordinator", None)
+        for key in (f"{entry.entry_id}_coordinator", f"{entry.entry_id}_life_coordinator"):
+            coordinator = hass.data[DOMAIN].pop(key, None)
+            # Avbryt en schemalagd omräkning (se TransitionScheduler) så den
+            # inte kör mot en urladdad entry.
+            if coordinator is not None and hasattr(coordinator, "transitions"):
+                coordinator.transitions.cancel()
     return unload_ok
